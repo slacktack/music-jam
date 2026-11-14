@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Play, Radio as RadioIcon, Search as SearchIcon, X } from 'lucide-react';
-import { ARTISTS, VIBES, artistById, festById, festState, findArtist, findFestival, findVibe, sortedFestivals, vibeById, type Festival, type Query, type Vibe } from '../lib/catalog';
+import { ARTISTS, RADIO_TABS, VIBES, artistById, festById, festState, findArtist, findFestival, findVibe, sortedFestivals, vibeById, type Festival, type Query, type Vibe } from '../lib/catalog';
 import { PALETTE } from '../lib/color';
 import { searchSongs } from '../lib/songs';
 import { searchStations, stationsFor } from '../lib/radio';
@@ -98,7 +98,7 @@ export function Home() {
       </header>
 
       <section>
-        <SectionHead kicker="00" title="One tap" />
+        <SectionHead kicker="00" title="One tap radio" to="/radio" />
         <div className="onetap">
           {ONE_TAP.map((v, i) => (
             <motion.button key={v.id} className="tap" style={{ '--c': v.colors[0], '--c2': v.colors[1] } as React.CSSProperties} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} whileTap={{ scale: 0.95 }} onClick={() => playCollection({ songs: v.songs, radio: v.radio, label: v.label }, 'radio')}>
@@ -285,6 +285,32 @@ export function Search({ q }: { q: string }) {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Radio hub
+
+export function RadioHub({ tab }: { tab: string }) {
+  const current = RADIO_TABS.find((t) => t.id === tab) || RADIO_TABS[0];
+  const playing = usePlayer((s) => s.track?.kind === 'radio' && s.status === 'playing');
+  return (
+    <div className="page radio-hub">
+      <header className="hub-head">
+        <DotText text="LIVE" colors={[PALETTE.phosphor, PALETTE.cyan]} energy={playing ? 1 : 0} className="hub-dots" />
+        <div>
+          <h1>Radio & FM</h1>
+          <p>Thousands of live stations. They keep playing with your screen off, so this is the one for the gym, the drive and the night.</p>
+        </div>
+      </header>
+      <nav className="texttabs" aria-label="Radio categories">
+        {RADIO_TABS.map((t) => (
+          <a key={t.id} {...linkProps(`/radio/${t.id}`)} className={t.id === current.id ? 'on' : ''} aria-current={t.id === current.id ? 'page' : undefined}>
+            {t.label}
+          </a>
+        ))}
+      </nav>
+      <StationGrid key={current.id} queries={current.radio} context={`${current.label} radio`} />
     </div>
   );
 }

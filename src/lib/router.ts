@@ -10,6 +10,7 @@ export type Route =
   | { name: 'floor' }
   | { name: 'chat' }
   | { name: 'likes' }
+  | { name: 'stations'; tab: string }
   | { name: 'radio'; id: string }
   | { name: 'song'; id: string; title: string; by: string };
 
@@ -25,6 +26,7 @@ function parse(): Route {
     case 'floor': return { name: 'floor' };
     case 'chat': return { name: 'chat' };
     case 'likes': return { name: 'likes' };
+    case 'radio': return { name: 'stations', tab: b || 'india' };
     case 'r': return b && /^[0-9a-f-]{36}$/i.test(b) ? { name: 'radio', id: b } : { name: 'home' };
     case 's': return b && /^[\w-]{11}$/.test(b) ? { name: 'song', id: b, title: qs.get('t') || '', by: qs.get('a') || '' } : { name: 'home' };
     default: return { name: 'home' };

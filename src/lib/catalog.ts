@@ -188,3 +188,18 @@ export function findArtist(q: string) {
   if (t.length < 3) return;
   return ARTISTS.find((a) => a.label.toLowerCase().includes(t) || t.includes(a.label.toLowerCase()));
 }
+
+// The Radio hub: live FM & internet stations, keeps playing with the screen off.
+export const RADIO_TABS: { id: string; label: string; radio: Query[] }[] = [
+  { id: 'india', label: 'Top India', radio: [top({ countrycode: 'IN' })] },
+  { id: 'fm', label: 'FM channels', radio: [top({ countrycode: 'IN', name: 'mirchi' }), top({ countrycode: 'IN', name: 'big' }), top({ countrycode: 'IN', name: 'vividh' }), top({ countrycode: 'IN', name: 'air ' }), top({ name: 'red fm' }), top({ countrycode: 'IN', name: 'radio city' }), top({ countrycode: 'IN', name: 'fever' }), top({ countrycode: 'IN', name: ' fm' })] },
+  { id: 'hindi', label: 'Hindi', radio: VIBES[0].radio },
+  { id: 'punjabi', label: 'Punjabi', radio: VIBES[1].radio },
+  { id: 'retro', label: 'Retro', radio: VIBES[2].radio },
+  { id: 'bollywood', label: 'Bollywood', radio: VIBES[3].radio },
+  { id: 'bhakti', label: 'Bhakti', radio: VIBES[4].radio },
+  { id: 'bhojpuri', label: 'Bhojpuri', radio: VIBES[5].radio },
+  { id: 'sufi', label: 'Sufi', radio: VIBES[6].radio },
+  { id: 'south', label: 'South', radio: [top({ language: 'tamil' }), top({ language: 'telugu' }), top({ language: 'malayalam' }), top({ language: 'kannada' })] },
+  { id: 'world', label: 'World', radio: [top({})] },
+];

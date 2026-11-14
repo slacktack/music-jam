@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Heart, Home as HomeIcon, MessageCircle, Search as SearchIcon, Users } from 'lucide-react';
+import { Heart, Home as HomeIcon, MessageCircle, Radio as RadioIcon, Search as SearchIcon, Users } from 'lucide-react';
 import { useRef } from 'react';
 import { COLORS, colorsFor } from './lib/color';
 import { usePlayer, warmUpYouTube } from './lib/player';
@@ -10,7 +10,7 @@ import { go, linkProps, useRoute, type Route } from './lib/router';
 import { stationById } from './lib/radio';
 import { thumb } from './lib/songs';
 import { Avatar, DotGlyph } from './components/Art';
-import { Collection, Home, Search } from './components/Pages';
+import { Collection, Home, RadioHub, Search } from './components/Pages';
 import { Chat, FloorView, Likes } from './components/Social';
 import { MiniPlayer, NowPlaying, Theater, VideoHost } from './components/Player';
 import { setSheetOpen } from './components/canvas';
@@ -74,6 +74,7 @@ function Identity() {
             <div className="scrim" onClick={() => { save(); setOpen(false); }} />
             <motion.div className="me-pop" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
               <label>Your name on the floor<input value={name} maxLength={24} onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === 'Enter' && (save(), setOpen(false))} /></label>
+              <a className="pop-link" {...linkProps('/likes')} onClick={(e) => { e.preventDefault(); setOpen(false); go('/likes'); }}><Heart size={16} /> Your likes</a>
               <div className="swatches" role="radiogroup" aria-label="Your colour">
                 {COLORS.map((c) => <button key={c} role="radio" aria-checked={me.color === c} aria-label={c} className={me.color === c ? 'on' : ''} style={{ background: c }} onClick={() => useFloor.getState().setIdentity({ color: c })} />)}
               </div>
@@ -181,10 +182,10 @@ export function App() {
 
   const tabs = [
     { path: '/', name: 'home', label: 'Home', icon: HomeIcon },
+    { path: '/radio', name: 'stations', label: 'Radio', icon: RadioIcon },
     { path: '/search', name: 'search', label: 'Search', icon: SearchIcon },
     { path: '/floor', name: 'floor', label: 'Floor', icon: Users },
-    ...(desktop ? [] : [{ path: '/chat', name: 'chat', label: 'Chat', icon: MessageCircle }]),
-    { path: '/likes', name: 'likes', label: 'Likes', icon: Heart },
+    ...(desktop ? [{ path: '/likes', name: 'likes', label: 'Likes', icon: Heart }] : [{ path: '/chat', name: 'chat', label: 'Chat', icon: MessageCircle }]),
   ];
   const activeTab = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? 'home' : route.name;
   const nav = tabs.map((t) => (
@@ -205,6 +206,7 @@ export function App() {
     case 'floor': page = <FloorView />; break;
     case 'chat': page = <div className="page chat-page"><Chat /></div>; break;
     case 'likes': page = <Likes />; break;
+    case 'stations': page = <RadioHub tab={route.tab} />; break;
     default: page = <Home />;
   }
   const pageKey = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? `${route.name}/${route.id}` : route.name === 'search' ? 'search' : route.name;

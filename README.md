@@ -71,7 +71,7 @@ Everything received is validated (`cleanTrack`, string limits, `https://` only, 
 
 Real paths via the History API (`src/lib/router.ts`):
 
-`/` home · `/search?q=` · `/vibe/:id` · `/artist/:id` · `/fest/:id` · `/floor` · `/chat` (mobile) · `/likes` · `/r/:stationuuid` shared radio · `/s/:videoId?t=title&a=artist` shared song.
+`/` home · `/radio/:tab` Radio & FM hub (`india`, `fm`, `hindi`, `punjabi`, `retro`, …) · `/search?q=` · `/vibe/:id` · `/artist/:id` · `/fest/:id` · `/floor` · `/chat` (mobile) · `/likes` · `/r/:stationuuid` shared radio · `/s/:videoId?t=title&a=artist` shared song.
 
 Share links open the app with that station/song loaded and the player open, ready to tap play (browsers block autoplay with sound).
 
@@ -108,6 +108,7 @@ src/components/{Lists,Tiles,collection,canvas}.ts(x)
 
 - **Language/genre:** add to `VIBES` in `catalog.ts`. `radio` is a list of Radio Browser search params (`language`, `tag`, `name`, `countrycode`, `order`), `songs` is a YouTube query. Desi entries set `desi: true`.
 - **Singer:** add to `ARTISTS` with `artist(id, label, sub, colors, pattern, stationNameOrNull, fallbackQueries)`. Check the directory first for a dedicated station: `https://de1.api.radio-browser.info/json/stations/search?name=<singer>&countrycode=IN`.
+- **Radio hub tab:** add to `RADIO_TABS` in `catalog.ts`.
 - **Festival/mood:** add to `FESTIVALS`. `dates` are the main day per year (lunar festivals are approximate; update yearly); `before`/`after` set the "Happening now" window. Empty `dates` = mood, always shown. `aliases` power search shortcuts (typos like "chath" included).
 
 ## Design system
@@ -116,6 +117,12 @@ src/components/{Lists,Tiles,collection,canvas}.ts(x)
 - Palette (`src/lib/color.ts`): saffron `#FF8A00`, marigold `#FFC300`, red `#E10600`, phosphor `#2BD94A`, lime `#D7FF3A`, indigo `#5B5BFF`, violet `#9B5CFF`, magenta `#FF2D95`, cyan `#00D1FF`, teal `#00E0B0`. Every track gets a stable colour pair; the playing pair is written to `--accent`/`--accent2` and the whole app cross-fades to it.
 - Scrollbars are hidden everywhere; layout never scrolls horizontally.
 - Canvases only animate while visible and the tab is in the foreground; `prefers-reduced-motion` is respected.
+
+## Performance rules
+
+- Every canvas goes through `useCanvas` (`src/components/canvas.ts`): FPS-capped, paused off-screen, in background tabs and behind the player sheet (`layer: 'page'`).
+- `LITE` mode (≤4 cores or ≤4 GB RAM, or reduced motion) drops blur, glow and most animation; `.touch` drops per-element blur on phones.
+- The YouTube iframe overlay (`VideoHost`) tracks its slot every frame only while something moves, otherwise 4×/s.
 
 ## Known limits
 

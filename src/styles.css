@@ -320,6 +320,18 @@ img { display: block; }
 .shortcut { position: relative; overflow: hidden; display: flex; align-items: flex-end; height: 150px; border-radius: 26px; isolation: isolate; }
 .shortcut .vtile-text b { font-size: 34px; font-weight: 600; font-family: var(--display); letter-spacing: -0.015em; line-height: 1; }
 
+/* ---------- radio hub ---------- */
+.hub-head { display: grid; gap: 14px; }
+.hub-dots { height: clamp(90px, 24vw, 170px); width: min(100%, 560px) !important; }
+.hub-head h1 { font-family: var(--display); font-size: clamp(34px, 8vw, 58px); font-weight: 600; letter-spacing: -0.015em; line-height: 1; }
+.hub-head p { margin-top: 8px; color: var(--mute); max-width: 520px; }
+.texttabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 22px; overflow-x: auto; margin: -8px -16px 0; padding: 12px 16px 10px; background: linear-gradient(var(--bg) 70%, transparent); }
+.texttabs a { position: relative; flex: none; font-family: var(--display); font-size: 20px; font-weight: 500; color: var(--faint); transition: color 0.2s; padding-bottom: 8px; }
+.texttabs a.on { color: #fff; }
+.texttabs a.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background-image: radial-gradient(circle, var(--phosphor) 1.6px, transparent 2px); background-size: 8px 4px; }
+.pop-link { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border-radius: 14px; background: var(--s3); font-weight: 700; font-size: 14px; }
+.pop-link svg { color: var(--red); }
+
 /* ---------- floor ---------- */
 .floor-head { display: grid; gap: 8px; }
 .floor-count { height: clamp(90px, 26vw, 170px); width: min(100%, 520px) !important; }
@@ -580,6 +592,9 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .rail-wrap:hover .rail-arrow { opacity: 1; }
   .rail-arrow:hover { transform: scale(1.08); }
   .hero-dots { height: clamp(150px, 17vw, 240px); }
+  .hero .search-pill { display: none; }
+  .texttabs { margin: -8px 0 0; padding: 12px 0 10px; }
+  .hub-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 36px; }
   .topbar { height: 60px; gap: 16px; }
   .vtile:hover { box-shadow: 0 30px 70px -26px var(--c); }
   .small-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
