@@ -1,0 +1,10 @@
+# Floor server (presence + chat WebSocket). Also serves the built site, so this
+# alone is a complete deployment; or pair it with Vercel via VITE_WS_URL.
+services:
+  - type: web
+    name: jam-floor
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
