@@ -38,7 +38,7 @@ function Controls({ big }: { big?: boolean }) {
       <button className="ctl" onClick={() => p.skip(-1)} disabled={!hasQueue} aria-label="Previous station">
         <SkipBack size={sz - 6} fill="currentColor" />
       </button>
-      <motion.button className="ctl main" whileTap={{ scale: 0.9 }} onClick={p.toggle} aria-label={isLive(status) ? 'Pause' : 'Play'}>
+      <motion.button className="ctl primary" whileTap={{ scale: 0.9 }} onClick={p.toggle} aria-label={isLive(status) ? 'Pause' : 'Play'}>
         {status === 'loading' ? <Loader2 className="spin" size={sz} /> : status === 'playing' ? <Pause size={sz} fill="currentColor" /> : <Play size={sz} fill="currentColor" />}
       </motion.button>
       <button className="ctl" onClick={() => p.skip(1)} disabled={!hasQueue} aria-label="Next station">
@@ -144,7 +144,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
           </small>
         </span>
       </button>
-      <button className="ctl main sm" onClick={usePlayer.getState().toggle} aria-label={isLive(status) ? 'Pause' : 'Play'}>
+      <button className="ctl primary sm" onClick={usePlayer.getState().toggle} aria-label={isLive(status) ? 'Pause' : 'Play'}>
         {status === 'loading' ? <Loader2 className="spin" size={20} /> : status === 'playing' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
       </button>
     </motion.div>
