@@ -359,7 +359,7 @@ img { display: block; }
 .hub-dots { height: clamp(90px, 24vw, 170px); width: min(100%, 560px) !important; }
 .hub-head h1 { font-family: var(--display); font-size: clamp(34px, 8vw, 58px); font-weight: 600; letter-spacing: -0.015em; line-height: 1; }
 .hub-head p { margin-top: 8px; color: var(--mute); max-width: 520px; }
-.texttabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 22px; overflow-x: auto; margin: -8px -16px 0; padding: 12px 16px 10px; background: linear-gradient(var(--bg) 70%, transparent); }
+.texttabs { position: sticky; top: calc(-6px - var(--safe-t)); z-index: 6; display: flex; gap: 22px; overflow-x: auto; margin: -8px -16px 0; padding: 12px 16px 10px; background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border-bottom: 1px solid var(--line); }
 .texttabs a, .texttabs button { position: relative; flex: none; font-family: var(--display); font-size: 20px; font-weight: 500; color: var(--faint); transition: color 0.2s; padding-bottom: 8px; }
 .texttabs a.on, .texttabs button.on { color: #fff; }
 .texttabs .on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background-image: radial-gradient(circle, var(--phosphor) 1.6px, transparent 2px); background-size: 8px 4px; }
@@ -758,7 +758,7 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .rail-arrow:hover { transform: scale(1.08); }
   .hero-dots { height: clamp(150px, 17vw, 240px); }
 
-  .texttabs { margin: -8px 0 0; padding: 12px 0 10px; }
+  .texttabs { top: -14px; margin: -8px -32px 0; padding: 24px 32px 12px; }
   .cats { margin: -6px 0 0; padding: 10px 2px 14px; grid-auto-columns: 160px; }
   .hub-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 36px; }
   .topbar { height: 60px; gap: 16px; }
@@ -817,7 +817,7 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 [data-theme='light'] .empty { background: #fff; border-style: solid; border-color: transparent; }
 [data-theme='light'] .vtile.small { border-color: transparent; }
 [data-theme='light'] .acard-disc { box-shadow: 0 18px 36px -18px var(--c); }
-[data-theme='light'] .texttabs { background: linear-gradient(var(--bg) 70%, transparent); }
+[data-theme='light'] .texttabs { background: color-mix(in srgb, var(--bg) 90%, transparent); }
 [data-theme='light'] .cat { border-color: transparent; box-shadow: 0 10px 24px -16px rgba(11, 11, 16, 0.6); }
 [data-theme='light'] .cat.on { box-shadow: 0 0 0 2px var(--c), 0 14px 34px -14px var(--c); }
 [data-theme='light'] .texttabs a.on, [data-theme='light'] .texttabs button.on { color: #0b0b10; }
