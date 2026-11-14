@@ -93,6 +93,7 @@ function Clock() {
 }
 
 function Identity() {
+  useTheme((s) => s.theme + s.accent);
   const me = useFloor((s) => s.me);
   const myId = useFloor((s) => s.myId);
   const [open, setOpen] = useState(false);
@@ -114,6 +115,12 @@ function Identity() {
             <div className="scrim" onClick={() => { save(); setOpen(false); }} />
             <motion.div className="me-pop" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
               <label>Your name on the floor<input value={name} maxLength={24} onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === 'Enter' && (save(), setOpen(false))} /></label>
+              <div className="pop-row">
+                <button className="pop-link" onClick={useTheme.getState().toggle}>{useTheme.getState().theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} {useTheme.getState().theme === 'dark' ? 'Light' : 'Dark'} theme</button>
+              </div>
+              <div className="accent-dots" role="radiogroup" aria-label="Accent">
+                {ACCENTS.map((a) => <button key={a.id} role="radio" aria-checked={useTheme.getState().accent === a.id} title={a.label} className={useTheme.getState().accent === a.id ? 'on' : ''} style={{ background: a.id === 'music' ? 'conic-gradient(#FF8A00, #FF2D95, #5B5BFF, #2BD94A, #FF8A00)' : `linear-gradient(135deg, ${a.colors[0]}, ${a.colors[1]})` }} onClick={() => useTheme.getState().setAccent(a.id)} />)}
+              </div>
               <a className="pop-link" {...linkProps('/likes')} onClick={(e) => { e.preventDefault(); setOpen(false); go('/likes'); }}><Heart size={16} /> Your likes</a>
               <div className="swatches" role="radiogroup" aria-label="Your colour">
                 {COLORS.map((c) => <button key={c} role="radio" aria-checked={me.color === c} aria-label={c} className={me.color === c ? 'on' : ''} style={{ background: c }} onClick={() => useFloor.getState().setIdentity({ color: c })} />)}
@@ -262,8 +269,7 @@ export function App() {
         <div className="topbar">
           {!desktop && <Logo />}
           {desktop && route.name !== 'search' ? <TopSearch /> : <span className="grow" />}
-          {desktop && <Clock />}
-          <ThemeControls />
+          {desktop && <ThemeControls />}
           <Identity />
         </div>
         <AnimatePresence mode="wait" initial={false}>

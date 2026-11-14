@@ -39,14 +39,12 @@ function Empty({ glyph = 'sad', text, retry }: { glyph?: 'sad' | 'search' | 'hea
   );
 }
 
-function SectionHead({ title, kicker, to, count }: { title: string; kicker?: string; to?: string; count?: number }) {
-  const words = title.split(' ');
-  const last = words.length > 1 ? words.pop() : null;
+function SectionHead({ title, kicker, to }: { title: string; kicker?: string; to?: string; count?: number }) {
   return (
     <div className="shead">
       <div>
         {kicker && <span className="kicker doto">{kicker}</span>}
-        <h2>{words.join(' ')}{last && <> <em>{last}</em></>}{count !== undefined && <sup className="count-badge doto">{count}</sup>}</h2>
+        <h2>{title}</h2>
       </div>
       {to && <a className="see-all" {...linkProps(to)}>See all</a>}
     </div>
@@ -112,27 +110,25 @@ export function Home() {
   const spots = useFloor((s) => s.spots);
   const playing = usePlayer((s) => s.status === 'playing');
   const heroColors = useHeroColors();
-  const name = useFloor((s) => s.me.name);
   const fests = useMemo(() => sortedFestivals(), []);
   const desi = VIBES.filter((v) => v.desi);
   const big = desi.slice(0, 3);
   return (
     <div className="page home">
       <header className="hero">
-        <div className="hero-top">
-          <div className="hero-greet">
-            <h1>{greeting()}, <span>{name}</span></h1>
-            <h2>Aaj kya sunoge?</h2>
+        <DotText text="JAM" colors={heroColors} energy={playing ? 1 : 0} className="hero-dots" />
+        <div className="hero-side">
+          <div className="live-count">
+            <i className={`live-dot ${status === 'live' ? '' : 'off'}`} />
+            <b className="doto">{String(total).padStart(3, '0')}</b>
+            <span>{status === 'live' ? 'on the floor right now' : status === 'connecting' ? 'joining the floor…' : 'floor offline, music still works'}</span>
           </div>
+          <h1>Aaj kya sunoge?</h1>
+          <p>Every free radio and every song, on one shared floor. No rooms, no sign-up.</p>
           <a className="search-pill" {...linkProps('/search')}>
             <SearchIcon size={18} />
             <span>Songs, singers, stations, festivals…</span>
           </a>
-        </div>
-        <div className="hero-card">
-          <DotText text="JAM" colors={heroColors} energy={playing ? 1 : 0} className="hero-dots" />
-          <span className="hero-badge"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} /><b className="doto">{total}</b> {status === 'live' ? 'on the floor' : status === 'connecting' ? 'joining the floor…' : 'floor offline'}</span>
-          <span className="hero-hint">{coarse ? 'tap the dots' : 'move your cursor'} ↗</span>
         </div>
       </header>
 
