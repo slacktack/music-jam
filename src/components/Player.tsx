@@ -59,15 +59,9 @@ export function VideoHost() {
       if (!best) { el.style.visibility = 'hidden'; return; }
       const r = best.getBoundingClientRect();
       el.style.visibility = 'visible';
-      // A rotated slot (theater on a portrait phone): use its unrotated size and rotate the host too.
-      const rot = bestP === 100 && r.height > r.width && best.offsetWidth > best.offsetHeight;
-      const w = rot ? best.offsetWidth : r.width;
-      const h = rot ? best.offsetHeight : r.height;
-      el.style.width = `${w}px`;
-      el.style.height = `${h}px`;
-      el.style.transform = rot
-        ? `translate(${r.left + r.width / 2 - w / 2}px, ${r.top + r.height / 2 - h / 2}px) rotate(90deg)`
-        : `translate(${r.left}px, ${r.top}px)`;
+      el.style.width = `${r.width}px`;
+      el.style.height = `${r.height}px`;
+      el.style.transform = `translate(${r.left}px, ${r.top}px)`;
       el.style.zIndex = String(bestP);
       el.style.borderRadius = getComputedStyle(best).borderRadius;
     };
@@ -116,14 +110,17 @@ export function Theater() {
   return (
     <AnimatePresence>
       {open && track?.kind === 'song' && (
-        <motion.div className="theater" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onKeyDown={(e) => e.key === 'Escape' && closeTheater()}>
-          <div className="theater-frame"><VideoSlot priority={100} /></div>
-          <div className="theater-bar">
-            <button className="ctl" onClick={closeTheater} aria-label="Exit full screen"><X size={22} /></button>
-            <b>{track.title}</b>
-            <button className="ctl" onClick={() => usePlayer.getState().toggle()} aria-label={isLive(status) ? 'Pause' : 'Play'}>{status === 'playing' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button>
-            <button className="ctl" onClick={() => usePlayer.getState().skip(1)} aria-label="Next"><SkipForward size={20} fill="currentColor" /></button>
-          </div>
+        <motion.div key="theater" className="theater" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div className="theater-frame"><VideoSlot priority={95} /></div>
+          <p className="theater-hint doto">ROTATE YOUR PHONE FOR FULL SCREEN</p>
+        </motion.div>
+      )}
+      {open && track?.kind === 'song' && (
+        <motion.div key="theater-bar" className="theater-bar" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+          <button className="ctl" onClick={closeTheater} aria-label="Exit full screen"><X size={22} /></button>
+          <b>{track.title}</b>
+          <button className="ctl" onClick={() => usePlayer.getState().toggle()} aria-label={isLive(status) ? 'Pause' : 'Play'}>{status === 'playing' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button>
+          <button className="ctl" onClick={() => usePlayer.getState().skip(1)} aria-label="Next"><SkipForward size={20} fill="currentColor" /></button>
         </motion.div>
       )}
     </AnimatePresence>

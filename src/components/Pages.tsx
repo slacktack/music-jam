@@ -9,7 +9,7 @@ import { useFloor } from '../lib/floor';
 import { usePlayer } from '../lib/player';
 import { back, go, linkProps } from '../lib/router';
 import type { Track } from '../lib/types';
-import { DotGlyph, DotText, FlowArt } from './Art';
+import { DotGlyph, DotNumber, DotText, FlowArt } from './Art';
 import { coarse } from './canvas';
 import { Rail, RowSkeleton, StationTile, TileSkeleton, TrackRow, useListeners } from './Lists';
 import { ArtistCard, FestCard, VibeTile, festLabel } from './Tiles';
@@ -120,7 +120,7 @@ export function Home() {
         <div className="hero-side">
           <div className="live-count">
             <i className={`live-dot ${status === 'live' ? '' : 'off'}`} />
-            <b className="doto">{String(total).padStart(3, '0')}</b>
+            <DotNumber value={String(total).padStart(3, '0')} height={22} />
             <span>{status === 'live' ? 'on the floor right now' : status === 'connecting' ? 'joining the floor…' : 'floor offline, music still works'}</span>
           </div>
           <h1>Aaj kya sunoge?</h1>

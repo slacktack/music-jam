@@ -84,24 +84,28 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
 
   const ref = useCanvas((ctx, w, h, t) => {
     const s = st.current;
+    // Each font pixel becomes a 2x2 block of dots: twice the resolution, same letterforms.
+    const S = 2;
     const chars = [...text.toUpperCase()].map((c) => FONT[c] || FONT[' ']);
-    const cols = chars.length * 6 - 1;
+    const CW = 5 * S, GAP = 2, ROWS = 7 * S;
+    const cols = chars.length * (CW + GAP) - GAP;
     const key = `${w}x${h}|${text}`;
     if (key !== s.key) {
       s.key = key;
-      const pad = 1.2;
-      s.step = Math.min(w / (cols + pad * 2), h / (7 + pad * 2));
+      const pad = 1.6;
+      s.step = Math.min(w / (cols + pad * 2), h / (ROWS + pad * 2));
       const gridW = Math.floor(w / s.step), gridH = Math.floor(h / s.step);
       s.ox = (w - gridW * s.step) / 2 + s.step / 2;
       s.oy = (h - gridH * s.step) / 2 + s.step / 2;
-      const c0 = Math.round((gridW - cols) / 2), r0 = Math.round((gridH - 7) / 2);
+      const c0 = Math.round((gridW - cols) / 2), r0 = Math.round((gridH - ROWS) / 2);
       const old = s.dots;
       s.dots = [];
       for (let gy = 0; gy < gridH; gy++)
         for (let gx = 0; gx < gridW; gx++) {
           const lx = gx - c0, ly = gy - r0;
           let on = false;
-          if (ly >= 0 && ly < 7 && lx >= 0 && lx < cols && lx % 6 !== 5) on = chars[Math.floor(lx / 6)][ly][lx % 6] === 'X';
+          const cx = lx % (CW + GAP);
+          if (ly >= 0 && ly < ROWS && lx >= 0 && lx < cols && cx < CW) on = chars[Math.floor(lx / (CW + GAP))][Math.floor(ly / S)][Math.floor(cx / S)] === 'X';
           const prev = old[s.dots.length];
           s.dots.push({ x: s.ox + gx * s.step, y: s.oy + gy * s.step, on, col: Math.max(0, Math.min(1, lx / Math.max(1, cols - 1))), rgb: prev?.rgb ?? [255, 255, 255], to: [0, 0, 0] });
         }
@@ -112,7 +116,7 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
     const py = idle ? h * (0.5 + 0.35 * Math.sin(t * 1.3)) : s.py;
     s.pk += ((idle ? 0.5 : 1) - s.pk) * 0.08;
     const step = s.step;
-    const R = step * 6;
+    const R = step * 10;
     const now = performance.now();
     s.ripples = s.ripples.filter((r) => now - r.t0 < 1400);
     const tg = target.current;
@@ -133,12 +137,12 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
       const beat = energy ? 0.5 + 0.5 * Math.sin(t * 7 - d.col * 9) : 0;
       let r: number;
       if (d.on) {
-        r = step * (0.33 + 0.04 * wave + 0.1 * k + 0.05 * beat * energy);
+        r = step * (0.36 + 0.03 * wave + 0.08 * k + 0.04 * beat * energy);
         ctx.globalAlpha = 0.82 + 0.18 * Math.max(wave, k);
         ctx.fillStyle = k > 0.6 ? '#fff' : `rgb(${d.rgb[0] | 0},${d.rgb[1] | 0},${d.rgb[2] | 0})`;
       } else {
-        r = step * (0.08 + 0.2 * k);
-        ctx.globalAlpha = 0.09 + 0.5 * k;
+        r = step * (0.1 + 0.2 * k);
+        ctx.globalAlpha = 0.07 + 0.45 * k;
         ctx.fillStyle = `rgb(${d.rgb[0] | 0},${d.rgb[1] | 0},${d.rgb[2] | 0})`;
       }
       ctx.beginPath();
@@ -146,7 +150,7 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-  }, true, [text, energy], { fps: coarse ? 30 : 45, maxDpr: 3 });
+  }, true, [text, energy], { fps: coarse ? 30 : 45, crisp: true });
 
   useEffect(() => {
     const c = ref.current!;
@@ -181,5 +185,16 @@ export function DotLoader({ label = 'Loading' }: { label?: string }) {
       <div className="dl-grid">{Array.from({ length: 9 }, (_, c) => <span key={c} className="dl-col" style={{ animationDelay: `${c * 90}ms` }}>{Array.from({ length: 7 }, (_, r) => <i key={r} />)}</span>)}</div>
       <span className="doto">{label}</span>
     </div>
+  );
+}
+
+/** Crisp vector dot-matrix number (any size, any screen). */
+export function DotNumber({ value, height = 26, className = '' }: { value: string; height?: number; className?: string }) {
+  const chars = [...value].map((c) => FONT[c] || FONT[' ']);
+  const w = chars.length * 6 - 1;
+  return (
+    <svg className={`dotnum ${className}`} height={height} viewBox={`0 0 ${w} 7`} aria-label={value} role="img">
+      {chars.flatMap((rows, i) => rows.flatMap((row, y) => [...row].map((c, x) => (c === 'X' ? <circle key={`${i}-${x}-${y}`} cx={i * 6 + x + 0.5} cy={y + 0.5} r={0.4} /> : null))))}
+    </svg>
   );
 }

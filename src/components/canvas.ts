@@ -16,7 +16,7 @@ export function setSheetOpen(v: boolean) {
   wake.forEach((f) => f());
 }
 
-interface Opts { fps?: number; layer?: 'page' | 'player'; maxDpr?: number }
+interface Opts { fps?: number; layer?: 'page' | 'player'; maxDpr?: number; crisp?: boolean }
 
 /**
  * Canvas with DPR scaling, resize handling and a frame loop that only runs while
@@ -52,7 +52,7 @@ export function useCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: nu
     const start = () => { if (!raf) raf = requestAnimationFrame(frame); };
     kick.current = start;
     const ro = new ResizeObserver(() => {
-      const dpr = Math.min(opts.maxDpr ?? (animRef.current ? 1.5 : 2), LITE ? 1.5 : 3, devicePixelRatio || 1);
+      const dpr = opts.crisp ? Math.min(3, devicePixelRatio || 1) : Math.min(opts.maxDpr ?? (animRef.current ? 1.5 : 2), LITE ? 1.5 : 3, devicePixelRatio || 1);
       w = c.clientWidth;
       h = c.clientHeight;
       if (!w || !h) return;
