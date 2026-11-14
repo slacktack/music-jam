@@ -26,6 +26,12 @@ function Logo() {
   return (
     <a className="logo" {...linkProps('/')} aria-label="JAM home">
       <svg viewBox="0 0 51 21" width="58" height="24" aria-hidden>
+        <defs>
+          <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="0.4">
+            <stop offset="0" stopColor="var(--accent)" />
+            <stop offset="1" stopColor="var(--accent2)" />
+          </linearGradient>
+        </defs>
         {LOGO.flatMap((row, y) => [...row].map((c, x) => (c === 'X' ? <circle key={`${x}-${y}`} cx={1.5 + x * 3} cy={1.5 + y * 3} r="1.25" fill="currentColor" /> : null)))}
       </svg>
       <i />

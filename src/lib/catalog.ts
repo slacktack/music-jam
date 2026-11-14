@@ -190,18 +190,23 @@ export function findArtist(q: string) {
 }
 
 // The Radio hub: live FM & internet stations, keeps playing with the screen off.
-export const RADIO_TABS: { id: string; label: string; radio: Query[] }[] = [
-  { id: 'india', label: 'Top India', radio: [top({ countrycode: 'IN' })] },
-  { id: 'fm', label: 'FM channels', radio: [top({ countrycode: 'IN', name: 'mirchi' }), top({ countrycode: 'IN', name: 'big' }), top({ countrycode: 'IN', name: 'vividh' }), top({ countrycode: 'IN', name: 'air ' }), top({ name: 'red fm' }), top({ countrycode: 'IN', name: 'radio city' }), top({ countrycode: 'IN', name: 'fever' }), top({ countrycode: 'IN', name: ' fm' })] },
-  { id: 'hindi', label: 'Hindi', radio: VIBES[0].radio },
-  { id: 'punjabi', label: 'Punjabi', radio: VIBES[1].radio },
-  { id: 'retro', label: 'Retro', radio: VIBES[2].radio },
-  { id: 'bollywood', label: 'Bollywood', radio: VIBES[3].radio },
-  { id: 'bhakti', label: 'Bhakti', radio: VIBES[4].radio },
-  { id: 'bhojpuri', label: 'Bhojpuri', radio: VIBES[5].radio },
-  { id: 'sufi', label: 'Sufi', radio: VIBES[6].radio },
-  { id: 'south', label: 'South', radio: [top({ language: 'tamil' }), top({ language: 'telugu' }), top({ language: 'malayalam' }), top({ language: 'kannada' })] },
-  { id: 'world', label: 'World', radio: [top({})] },
+export interface RadioTab { id: string; label: string; sub: string; colors: [string, string]; pattern: Pattern; radio: Query[] }
+const vt = (id: string, vibeId: string, label: string, sub: string): RadioTab => {
+  const v = VIBES.find((x) => x.id === vibeId)!;
+  return { id, label, sub, colors: v.colors, pattern: v.pattern, radio: v.radio };
+};
+export const RADIO_TABS: RadioTab[] = [
+  { id: 'india', label: 'Top India', sub: 'Most played', colors: [P.saffron, P.phosphor], pattern: 'waves', radio: [top({ countrycode: 'IN' })] },
+  { id: 'fm', label: 'FM channels', sub: 'Mirchi · BIG · AIR', colors: [P.red, P.marigold], pattern: 'rays', radio: [top({ countrycode: 'IN', name: 'mirchi' }), top({ countrycode: 'IN', name: 'big' }), top({ countrycode: 'IN', name: 'vividh' }), top({ countrycode: 'IN', name: 'air ' }), top({ name: 'red fm' }), top({ countrycode: 'IN', name: 'radio city' }), top({ countrycode: 'IN', name: 'fever' }), top({ countrycode: 'IN', name: ' fm' })] },
+  vt('hindi', 'hindi', 'Hindi', 'हिंदी'),
+  vt('punjabi', 'punjabi', 'Punjabi', 'ਪੰਜਾਬੀ'),
+  vt('retro', 'retro-hindi', 'Retro', 'Old is gold'),
+  vt('bollywood', 'bollywood', 'Bollywood', 'Filmi'),
+  vt('bhakti', 'bhakti', 'Bhakti', 'Bhajan · aarti'),
+  vt('bhojpuri', 'bhojpuri', 'Bhojpuri', 'Purvanchal'),
+  vt('sufi', 'sufi', 'Sufi', 'Ghazal · qawwali'),
+  { id: 'south', label: 'South', sub: 'Tamil · Telugu · more', colors: [P.red, P.cyan], pattern: 'zigzag', radio: [top({ language: 'tamil' }), top({ language: 'telugu' }), top({ language: 'malayalam' }), top({ language: 'kannada' })] },
+  { id: 'world', label: 'World', sub: 'Everywhere else', colors: [P.indigo, P.cyan], pattern: 'contour', radio: [top({})] },
 ];
 
 /** Colours for whatever the player context is ("Punjabi", "Chhath Puja radio", "Kishore Kumar"...). */
