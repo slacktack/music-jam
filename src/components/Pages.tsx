@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Play, Radio as RadioIcon, Search as SearchIcon, X } from 'lucide-react';
-import { ARTISTS, RADIO_TABS, VIBES, artistById, festById, festState, findArtist, findFestival, findVibe, sortedFestivals, vibeById, type Festival, type Query, type Vibe } from '../lib/catalog';
+import { ArrowLeft, Play, Radio as RadioIcon, Search as SearchIcon, Share2, X } from 'lucide-react';
+import { ARTISTS, RADIO_TABS, VIBES, trackColors, artistById, festById, festState, findArtist, findFestival, findVibe, sortedFestivals, vibeById, type Festival, type Query, type Vibe } from '../lib/catalog';
 import { PALETTE } from '../lib/color';
 import { searchSongs } from '../lib/songs';
 import { searchStations, stationsFor } from '../lib/radio';
@@ -10,6 +10,7 @@ import { usePlayer } from '../lib/player';
 import { back, go, linkProps } from '../lib/router';
 import type { Track } from '../lib/types';
 import { DotGlyph, DotText, FlowArt } from './Art';
+import { coarse } from './canvas';
 import { Rail, RowSkeleton, StationTile, TileSkeleton, TrackRow, useListeners } from './Lists';
 import { ArtistCard, FestCard, VibeTile, festLabel } from './Tiles';
 import { playCollection } from './collection';
@@ -38,12 +39,14 @@ function Empty({ glyph = 'sad', text, retry }: { glyph?: 'sad' | 'search' | 'hea
   );
 }
 
-function SectionHead({ title, kicker, to }: { title: string; kicker?: string; to?: string }) {
+function SectionHead({ title, kicker, to, count }: { title: string; kicker?: string; to?: string; count?: number }) {
+  const words = title.split(' ');
+  const last = words.length > 1 ? words.pop() : null;
   return (
     <div className="shead">
       <div>
         {kicker && <span className="kicker doto">{kicker}</span>}
-        <h2>{title}</h2>
+        <h2>{words.join(' ')}{last && <> <em>{last}</em></>}{count !== undefined && <sup className="count-badge doto">{count}</sup>}</h2>
       </div>
       {to && <a className="see-all" {...linkProps(to)}>See all</a>}
     </div>
@@ -70,30 +73,66 @@ function StationGrid({ queries, context, term }: { queries?: Query[]; term?: str
 
 // ---------------------------------------------------------------- Home
 
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+const HERO_CYCLE: string[][] = [
+  [PALETTE.saffron, PALETTE.red, PALETTE.magenta],
+  [PALETTE.phosphor, PALETTE.lime, PALETTE.marigold],
+  [PALETTE.marigold, PALETTE.magenta, PALETTE.violet],
+  [PALETTE.cyan, PALETTE.indigo, PALETTE.magenta],
+  [PALETTE.teal, PALETTE.phosphor, PALETTE.cyan],
+];
+
+function trackTheme(): string[] {
+  const { track, context } = usePlayer.getState();
+  if (!track) return HERO_CYCLE[0];
+  return trackColors(track, context);
+}
+export const heroColorsStatic = trackTheme;
+
+/** Hero colours follow the genre that's playing; idle, they cycle through the palette. */
+function useHeroColors() {
+  const key = usePlayer((s) => `${s.track?.id ?? ''}|${s.context}`);
+  const hasTrack = usePlayer((s) => !!s.track);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (hasTrack) return;
+    const id = setInterval(() => setI((n) => n + 1), 4000);
+    return () => clearInterval(id);
+  }, [hasTrack]);
+  return useMemo(() => (hasTrack ? trackTheme() : HERO_CYCLE[i % HERO_CYCLE.length]), [key, hasTrack, i]);
+}
+
 export function Home() {
   const total = useFloor((s) => s.users.length);
   const status = useFloor((s) => s.status);
   const spots = useFloor((s) => s.spots);
   const playing = usePlayer((s) => s.status === 'playing');
+  const heroColors = useHeroColors();
+  const name = useFloor((s) => s.me.name);
   const fests = useMemo(() => sortedFestivals(), []);
   const desi = VIBES.filter((v) => v.desi);
   const big = desi.slice(0, 3);
   return (
     <div className="page home">
       <header className="hero">
-        <DotText text="JAM" colors={[PALETTE.saffron, PALETTE.magenta]} energy={playing ? 1 : 0} className="hero-dots" />
-        <div className="hero-side">
-          <div className="live-count">
-            <i className={`live-dot ${status === 'live' ? '' : 'off'}`} />
-            <b className="doto">{String(total).padStart(3, '0')}</b>
-            <span>{status === 'live' ? 'on the floor right now' : status === 'connecting' ? 'joining the floor…' : 'floor offline, music still works'}</span>
+        <div className="hero-top">
+          <div className="hero-greet">
+            <h1>{greeting()}, <span>{name}</span></h1>
+            <h2>Aaj kya sunoge?</h2>
           </div>
-          <h1>Aaj kya sunoge?</h1>
-          <p>Every free radio and every song, on one shared floor. No rooms, no sign-up.</p>
           <a className="search-pill" {...linkProps('/search')}>
             <SearchIcon size={18} />
-            <span>Songs, artists, stations, festivals…</span>
+            <span>Songs, singers, stations, festivals…</span>
           </a>
+        </div>
+        <div className="hero-card">
+          <DotText text="JAM" colors={heroColors} energy={playing ? 1 : 0} className="hero-dots" />
+          <span className="hero-badge"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} /><b className="doto">{total}</b> {status === 'live' ? 'on the floor' : status === 'connecting' ? 'joining the floor…' : 'floor offline'}</span>
+          <span className="hero-hint">{coarse ? 'tap the dots' : 'move your cursor'} ↗</span>
         </div>
       </header>
 
@@ -117,7 +156,7 @@ export function Home() {
       </section>
 
       <section>
-        <SectionHead kicker="02" title="Voices" />
+        <SectionHead kicker="02" title="Voices" count={ARTISTS.length} />
         <Rail className="artists">{ARTISTS.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}</Rail>
       </section>
 
@@ -127,7 +166,7 @@ export function Home() {
       </section>
 
       <section>
-        <SectionHead kicker="04" title="Festivals & moods" />
+        <SectionHead kicker="04" title="Festivals & moods" count={fests.length} />
         <Rail>{fests.map(({ f, s }, i) => <FestCard key={f.id} fest={f} state={s} index={i} />)}</Rail>
       </section>
 
@@ -192,6 +231,7 @@ export function Collection({ kind, id }: { kind: 'vibe' | 'fest' | 'artist'; id:
           <div className="btn-row">
             <button className="btn primary" onClick={() => playCollection({ songs: item.songs, radio: item.radio, label: item.label })}><Play size={18} fill="currentColor" /> Play songs</button>
             <button className="btn glass" onClick={() => playCollection({ songs: item.songs, radio: item.radio, label: item.label }, 'radio')}><RadioIcon size={18} /> Radio</button>
+            <button className="btn glass" onClick={() => { const url = location.href; navigator.share ? navigator.share({ title: item.label, url }).catch(() => {}) : navigator.clipboard?.writeText(url); }}><Share2 size={17} /> Share</button>
           </div>
         </div>
       </header>
@@ -277,7 +317,7 @@ export function Search({ q }: { q: string }) {
           )}
           <section>
             <SectionHead title="Songs" />
-            <SongList q={fest ? `${term}||${fest.songs}` : term} context={`Search: ${term}`} limit={20} />
+            <SongList q={fest ? `${term}||${fest.songs}` : /song|music|gaan|geet|bhajan|radio|mix|lofi|remix/i.test(term) ? term : `${term} song`} context={`Search: ${term}`} limit={20} />
           </section>
           <section>
             <SectionHead title="Live stations" />
@@ -297,7 +337,7 @@ export function RadioHub({ tab }: { tab: string }) {
   return (
     <div className="page radio-hub">
       <header className="hub-head">
-        <DotText text="LIVE" colors={[PALETTE.phosphor, PALETTE.cyan]} energy={playing ? 1 : 0} className="hub-dots" />
+        <DotText text="LIVE" colors={playing ? heroColorsStatic() : [PALETTE.phosphor, PALETTE.lime, PALETTE.cyan]} energy={playing ? 1 : 0} className="hub-dots" />
         <div>
           <h1>Radio & FM</h1>
           <p>Thousands of live stations. They keep playing with your screen off, so this is the one for the gym, the drive and the night.</p>

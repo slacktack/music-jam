@@ -52,7 +52,7 @@ export function useCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: nu
     const start = () => { if (!raf) raf = requestAnimationFrame(frame); };
     kick.current = start;
     const ro = new ResizeObserver(() => {
-      const dpr = Math.min(opts.maxDpr ?? (animRef.current ? 1.5 : 2), LITE ? 1 : 2, devicePixelRatio || 1);
+      const dpr = Math.min(opts.maxDpr ?? (animRef.current ? 1.5 : 2), LITE ? 1.5 : 3, devicePixelRatio || 1);
       w = c.clientWidth;
       h = c.clientHeight;
       if (!w || !h) return;

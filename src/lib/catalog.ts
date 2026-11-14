@@ -1,6 +1,6 @@
 // What the app offers: language/genre "vibes" (desi first) and festivals & moods.
 // Each entry knows how to find radio stations (Radio Browser params) and songs (YouTube query).
-import { PALETTE as P } from './color';
+import { PALETTE as P, colorsFor, hash } from './color';
 
 export type Pattern = 'waves' | 'zigzag' | 'rings' | 'rays' | 'contour' | 'grid';
 export type Query = Record<string, string>;
@@ -203,3 +203,21 @@ export const RADIO_TABS: { id: string; label: string; radio: Query[] }[] = [
   { id: 'south', label: 'South', radio: [top({ language: 'tamil' }), top({ language: 'telugu' }), top({ language: 'malayalam' }), top({ language: 'kannada' })] },
   { id: 'world', label: 'World', radio: [top({})] },
 ];
+
+/** Colours for whatever the player context is ("Punjabi", "Chhath Puja radio", "Kishore Kumar"...). */
+export function themeFor(context: string): [string, string] | undefined {
+  const c = context.replace(/ radio$/i, '').trim().toLowerCase();
+  if (!c) return;
+  const all = [...VIBES, ...ARTISTS, ...FESTIVALS];
+  const hit = all.find((x) => x.label.toLowerCase() === c) || RADIO_TABS.map((t) => ({ label: t.label, id: t.id })).map((t) => VIBES.find((v) => v.id === t.id && t.label.toLowerCase() === c)).find(Boolean);
+  return hit?.colors;
+}
+
+/** Per-song colours flavoured by the genre: changes on every song, keeps the genre's mood. */
+export function trackColors(track: { id: string }, context: string): [string, string, string] {
+  const song = colorsFor(track.id);
+  const g = themeFor(context);
+  if (!g) return [song[0], song[1], song[0] === P.magenta ? P.violet : P.magenta];
+  const base = g[hash(track.id) % 2];
+  return [base, song[0] === base ? song[1] : song[0], song[1] === base ? g[1 - (hash(track.id) % 2)] : song[1]];
+}

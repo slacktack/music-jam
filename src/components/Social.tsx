@@ -24,7 +24,7 @@ export function FloorView() {
     <div className="page floor">
       <header className="floor-head">
         <span className="kicker doto"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} />{status === 'live' ? 'LIVE' : status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}</span>
-        <DotText text={String(users.length).padStart(3, '0')} colors={[PALETTE.phosphor, PALETTE.cyan]} className="floor-count" />
+        <DotText text={String(users.length).padStart(3, '0')} colors={[PALETTE.phosphor, PALETTE.lime, PALETTE.cyan]} className="floor-count" />
         <h1>on the floor</h1>
         <p>Everyone here, and what they're playing. Tap a circle to jump in. Songs join at the same second.</p>
       </header>

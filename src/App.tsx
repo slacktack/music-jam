@@ -1,8 +1,10 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Heart, Home as HomeIcon, MessageCircle, Radio as RadioIcon, Search as SearchIcon, Users } from 'lucide-react';
+import { Heart, Home as HomeIcon, MessageCircle, Moon, Palette, Radio as RadioIcon, Search as SearchIcon, Sun, Users } from 'lucide-react';
+import { ACCENTS, useTheme } from './lib/theme';
 import { useRef } from 'react';
-import { COLORS, colorsFor } from './lib/color';
+import { COLORS } from './lib/color';
+import { trackColors } from './lib/catalog';
 import { usePlayer, warmUpYouTube } from './lib/player';
 import { useFloor } from './lib/floor';
 import { useToasts, toast } from './lib/toast';
@@ -49,6 +51,44 @@ function TopSearch() {
       <input ref={ref} placeholder="Search songs, singers, stations, festivals" aria-label="Search" onKeyDown={(e) => { if (e.key === 'Enter' && e.currentTarget.value.trim()) go(`/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`); }} onChange={(e) => { const v = e.target.value; if (v.trim().length > 1) go(`/search?q=${encodeURIComponent(v)}`, { replace: location.pathname === '/search' }); }} />
       <kbd className="doto">⌘K</kbd>
     </label>
+  );
+}
+
+function ThemeControls() {
+  const theme = useTheme((s) => s.theme);
+  const accent = useTheme((s) => s.accent);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="theme-ctl">
+      <button className="cap-btn round" onClick={() => setOpen((o) => !o)} aria-label="Accent colour" aria-expanded={open}><Palette size={18} /></button>
+      <button className="cap-btn round" onClick={useTheme.getState().toggle} aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="scrim" onClick={() => setOpen(false)} />
+            <motion.div className="me-pop accent-pop" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
+              <span className="pop-title">Accent</span>
+              {ACCENTS.map((a) => (
+                <button key={a.id} className={`accent-row ${accent === a.id ? 'on' : ''}`} onClick={() => { useTheme.getState().setAccent(a.id); setOpen(false); }}>
+                  <i style={{ background: `linear-gradient(135deg, ${a.colors[0]}, ${a.colors[1]})` }} />{a.label}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 15000); return () => clearInterval(id); }, []);
+  return (
+    <div className="clock doto" aria-hidden>
+      <b>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</b>
+      <small>{now.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</small>
+    </div>
   );
 }
 
@@ -145,14 +185,15 @@ export function App() {
   const unread = useFloor((s) => s.unread);
   useSharedTrack(route, () => !desktop && setSheet(true));
 
+  const accentMode = useTheme((s) => s.accent);
   useEffect(() => {
-    const [a, b] = track ? colorsFor(track.id) : ['#FF8A00', '#FF2D95'];
+    const fixed = ACCENTS.find((x) => x.id === accentMode && x.id !== 'music');
+    const [a, b] = fixed ? fixed.colors : track ? trackColors(track, usePlayer.getState().context) : ['#FF8A00', '#FF2D95'];
     const root = document.documentElement.style;
     root.setProperty('--accent', a);
     root.setProperty('--accent2', b);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#050507');
     document.title = track && playing ? `${track.title} · JAM` : 'JAM · every radio, one floor';
-  }, [track, playing]);
+  }, [track, playing, accentMode]);
 
   useEffect(() => {
     const id = setTimeout(warmUpYouTube, 1200);
@@ -191,7 +232,7 @@ export function App() {
   const nav = tabs.map((t) => (
     <a key={t.name} className={`nav-btn ${activeTab === t.name ? 'on' : ''}`} {...linkProps(t.path)} aria-current={activeTab === t.name ? 'page' : undefined} aria-label={t.label}>
       {activeTab === t.name && <motion.span layoutId={desktop ? 'rail-pill' : 'tab-pill'} className="nav-pill" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-      <t.icon size={21} strokeWidth={activeTab === t.name ? 2.4 : 1.8} />
+      <t.icon size={desktop ? 21 : 19} strokeWidth={activeTab === t.name ? 2.4 : 1.9} />
       <span className="nav-label">{t.label}</span>
       {t.name === 'chat' && unread > 0 && activeTab !== 'chat' && <i className="dot" />}
     </a>
@@ -221,6 +262,8 @@ export function App() {
         <div className="topbar">
           {!desktop && <Logo />}
           {desktop && route.name !== 'search' ? <TopSearch /> : <span className="grow" />}
+          {desktop && <Clock />}
+          <ThemeControls />
           <Identity />
         </div>
         <AnimatePresence mode="wait" initial={false}>

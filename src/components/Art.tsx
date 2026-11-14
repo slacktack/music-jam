@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Pattern } from '../lib/catalog';
 import { colorsFor, rng } from '../lib/color';
 import { drawFlow, patternFor } from '../lib/flow';
-import { GLYPHS, type GlyphId } from '../lib/glyphs';
+import { FONT, GLYPHS, type GlyphId } from '../lib/glyphs';
 import type { Track } from '../lib/types';
 import { LITE, coarse, useCanvas } from './canvas';
 
@@ -69,82 +69,84 @@ export function Eq({ on }: { on: boolean }) {
   return <span className={`eq ${on ? 'on' : ''}`} aria-hidden><i /><i /><i /><i /></span>;
 }
 
-/** Big dot-matrix headline that reacts to the cursor/finger and breathes on its own. */
-export function DotText({ text, colors, energy = 0, className = '' }: { text: string; colors: [string, string]; energy?: number; className?: string }) {
-  const [fonts, setFonts] = useState(false);
-  const st = useRef({ key: '', dots: [] as { x: number; y: number; on: boolean; c: string }[], step: 8, px: -1e4, py: -1e4, pk: 0, last: 0, ripples: [] as { x: number; y: number; t0: number }[] });
-  useEffect(() => {
-    let alive = true;
-    document.fonts?.load('700 100px "Clash Display"').finally(() => alive && setFonts(true));
-    return () => { alive = false; };
-  }, []);
+/**
+ * Big dot-matrix headline from a hand-made 5x7 font: crisp at any size. Reacts to
+ * cursor/finger (glow + ripples), breathes on its own, and cross-fades between colour sets.
+ */
+export function DotText({ text, colors, energy = 0, className = '' }: { text: string; colors: string[]; energy?: number; className?: string }) {
+  const st = useRef({
+    key: '', step: 8, ox: 0, oy: 0,
+    dots: [] as { x: number; y: number; on: boolean; col: number; rgb: number[]; to: number[] }[],
+    px: -1e4, py: -1e4, pk: 0, last: 0, ripples: [] as { x: number; y: number; t0: number }[],
+  });
+  const target = useRef(colors.map(hexRgb));
+  target.current = colors.map(hexRgb);
 
   const ref = useCanvas((ctx, w, h, t) => {
     const s = st.current;
-    const key = `${w}x${h}|${text}|${colors}|${fonts}`;
+    const chars = [...text.toUpperCase()].map((c) => FONT[c] || FONT[' ']);
+    const cols = chars.length * 6 - 1;
+    const key = `${w}x${h}|${text}`;
     if (key !== s.key) {
       s.key = key;
-      s.step = Math.max(LITE ? 7 : coarse ? 6 : 4, Math.round(h / (LITE ? 11 : 15)));
-      const off = document.createElement('canvas');
-      off.width = Math.ceil(w);
-      off.height = Math.ceil(h);
-      const o = off.getContext('2d', { willReadFrequently: true })!;
-      let fs = h * 1.02;
-      o.font = `700 ${fs}px "Clash Display", "Satoshi", system-ui, sans-serif`;
-      const mw = o.measureText(text).width;
-      if (mw > w * 0.98) fs *= (w * 0.98) / mw;
-      o.font = `700 ${fs}px "Clash Display", "Satoshi", system-ui, sans-serif`;
-      o.textAlign = 'left';
-      o.textBaseline = 'middle';
-      o.fillStyle = '#fff';
-      o.fillText(text, 0, h * 0.54);
-      const data = o.getImageData(0, 0, off.width, off.height).data;
-      const dots: typeof s.dots = [];
-      const c1 = hexRgb(colors[0]);
-      const c2 = hexRgb(colors[1]);
-      for (let y = s.step / 2; y < h; y += s.step)
-        for (let x = s.step / 2; x < w; x += s.step) {
-          const on = data[(Math.floor(y) * off.width + Math.floor(x)) * 4 + 3] > 110;
-          const u = x / w;
-          dots.push({ x, y, on, c: `rgb(${mix(c1[0], c2[0], u)},${mix(c1[1], c2[1], u)},${mix(c1[2], c2[2], u)})` });
+      const pad = 1.2;
+      s.step = Math.min(w / (cols + pad * 2), h / (7 + pad * 2));
+      const gridW = Math.floor(w / s.step), gridH = Math.floor(h / s.step);
+      s.ox = (w - gridW * s.step) / 2 + s.step / 2;
+      s.oy = (h - gridH * s.step) / 2 + s.step / 2;
+      const c0 = Math.round((gridW - cols) / 2), r0 = Math.round((gridH - 7) / 2);
+      const old = s.dots;
+      s.dots = [];
+      for (let gy = 0; gy < gridH; gy++)
+        for (let gx = 0; gx < gridW; gx++) {
+          const lx = gx - c0, ly = gy - r0;
+          let on = false;
+          if (ly >= 0 && ly < 7 && lx >= 0 && lx < cols && lx % 6 !== 5) on = chars[Math.floor(lx / 6)][ly][lx % 6] === 'X';
+          const prev = old[s.dots.length];
+          s.dots.push({ x: s.ox + gx * s.step, y: s.oy + gy * s.step, on, col: Math.max(0, Math.min(1, lx / Math.max(1, cols - 1))), rgb: prev?.rgb ?? [255, 255, 255], to: [0, 0, 0] });
         }
-      s.dots = dots;
     }
     ctx.clearRect(0, 0, w, h);
-    // No pointer for a while: a ghost cursor wanders so it's alive on phones too.
     const idle = performance.now() - s.last > 2200;
     const px = idle ? w * (0.5 + 0.42 * Math.sin(t * 0.55)) : s.px;
     const py = idle ? h * (0.5 + 0.35 * Math.sin(t * 1.3)) : s.py;
-    s.pk += ((idle ? 0.55 : 1) - s.pk) * 0.08;
-    const R = s.step * 7;
+    s.pk += ((idle ? 0.5 : 1) - s.pk) * 0.08;
     const step = s.step;
+    const R = step * 6;
     const now = performance.now();
     s.ripples = s.ripples.filter((r) => now - r.t0 < 1400);
+    const tg = target.current;
     for (const d of s.dots) {
-      const dist = Math.hypot(d.x - px, d.y - py);
-      let k = Math.max(0, 1 - dist / R) * s.pk;
+      // colour: gradient across the word through every colour in the set, eased toward it
+      const f = d.col * (tg.length - 1);
+      const i = Math.min(tg.length - 2, Math.floor(f));
+      const u = f - i;
+      const a = tg[Math.max(0, i)], b = tg[Math.min(tg.length - 1, i + 1)];
+      for (let k = 0; k < 3; k++) d.rgb[k] += ((a[k] + (b[k] - a[k]) * u) - d.rgb[k]) * 0.05;
+      let k = Math.max(0, 1 - Math.hypot(d.x - px, d.y - py) / R) * s.pk;
       for (const rp of s.ripples) {
         const age = (now - rp.t0) / 1400;
         const ring = Math.abs(Math.hypot(d.x - rp.x, d.y - rp.y) - age * w * 0.9);
-        k = Math.max(k, Math.max(0, 1 - ring / (step * 2.2)) * (1 - age));
+        k = Math.max(k, Math.max(0, 1 - ring / (step * 1.8)) * (1 - age));
       }
       const wave = 0.5 + 0.5 * Math.sin(d.x * 0.02 + d.y * 0.012 - t * 2.4);
+      const beat = energy ? 0.5 + 0.5 * Math.sin(t * 7 - d.col * 9) : 0;
       let r: number;
       if (d.on) {
-        r = step * (0.3 + 0.07 * wave + 0.16 * k + 0.05 * energy * Math.sin(t * 9 + d.x * 0.08));
-        ctx.globalAlpha = 0.72 + 0.28 * Math.max(wave, k);
-        ctx.fillStyle = k > 0.55 ? '#fff' : d.c;
+        r = step * (0.33 + 0.04 * wave + 0.1 * k + 0.05 * beat * energy);
+        ctx.globalAlpha = 0.82 + 0.18 * Math.max(wave, k);
+        ctx.fillStyle = k > 0.6 ? '#fff' : `rgb(${d.rgb[0] | 0},${d.rgb[1] | 0},${d.rgb[2] | 0})`;
       } else {
-        r = step * (0.09 + 0.2 * k);
-        ctx.globalAlpha = 0.07 + 0.45 * k;
-        ctx.fillStyle = d.c;
+        r = step * (0.08 + 0.2 * k);
+        ctx.globalAlpha = 0.09 + 0.5 * k;
+        ctx.fillStyle = `rgb(${d.rgb[0] | 0},${d.rgb[1] | 0},${d.rgb[2] | 0})`;
       }
       ctx.beginPath();
       ctx.arc(d.x, d.y, r, 0, 6.2832);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-  }, true, [text, colors[0], colors[1], energy, fonts], { fps: coarse ? 24 : 40 });
+  }, true, [text, energy], { fps: coarse ? 30 : 45, maxDpr: 3 });
 
   useEffect(() => {
     const c = ref.current!;
@@ -160,7 +162,6 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
     };
     c.addEventListener('pointermove', move);
     c.addEventListener('pointerdown', down);
-    // a ripple on its own every few seconds
     const id = setInterval(() => {
       if (performance.now() - st.current.last < 3000 || document.hidden) return;
       st.current.ripples.push({ x: c.clientWidth * (0.2 + Math.random() * 0.6), y: c.clientHeight * (0.3 + Math.random() * 0.4), t0: performance.now() });
@@ -172,7 +173,6 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
 }
 
 const hexRgb = (h: string) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-const mix = (a: number, b: number, u: number) => Math.round(a + (b - a) * u);
 
 /** Dot-matrix equalizer used for loading states. */
 export function DotLoader({ label = 'Loading' }: { label?: string }) {

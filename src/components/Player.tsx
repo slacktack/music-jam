@@ -244,7 +244,7 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
 
   if (!track) {
     return (
-      <div className={`np ${variant} np-empty`}>
+      <div className={`np v-${variant} np-empty`}>
         <DotGlyph glyph="note" size={64} mode="pulse" color="var(--accent)" />
         <h3>Nothing playing</h3>
         <p>Pick a song or a station. You'll show up on the floor the moment it starts.</p>
@@ -256,7 +256,7 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
   const on = status === 'playing';
 
   return (
-    <div className={`np ${variant}`} style={{ '--c': colors[0], '--c2': colors[1] } as React.CSSProperties}>
+    <div className={`np v-${variant}`} style={{ '--c': colors[0], '--c2': colors[1] } as React.CSSProperties}>
       <div className="np-bg" aria-hidden>
         {track.kind === 'song' && <img src={`https://i.ytimg.com/vi/${track.url}/hqdefault.jpg`} alt="" />}
         <FlowArt seed={track.id} colors={colors} pattern={bgPattern(track.id)} animate={on} energy={on ? 1 : 0.35} bg={null} layer="player" fps={coarse ? 20 : 30} density={0.8} />
