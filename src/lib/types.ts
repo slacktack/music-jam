@@ -35,4 +35,5 @@ export interface ChatMsg {
   text: string;
   on: string;
   ts: number;
+  sys?: boolean; // floor activity line (joined / now playing), local only
 }

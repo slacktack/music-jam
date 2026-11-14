@@ -6,8 +6,11 @@ interface Item { id: string; title: string; channel: string; duration: number; v
 const cache = new Map<string, Track[]>();
 
 /** "Kesariya - Full Song | Brahmastra | Arijit Singh" -> "Kesariya" */
+const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+export const noEmoji = (t: string) => t.replace(EMOJI, '').replace(/\s+/g, ' ').trim();
+
 export function cleanTitle(t: string) {
-  const s = t
+  const s = noEmoji(t)
     .replace(/\[[^\]]*\]|\((?:official|full|lyric|lyrical|video|audio|hd|4k|song)[^)]*\)/gi, '')
     .replace(/#\S+/g, '')
     .replace(/\b(official\s+(music\s+)?video|full\s+(video\s+)?song|lyrical(\s+video)?|full\s+video|video\s+song|audio\s+song|official\s+audio)\b/gi, '')
@@ -45,7 +48,7 @@ async function searchOne(q: string, signal?: AbortSignal): Promise<Track[]> {
     id: `yt:${v.id}`,
     kind: 'song',
     title: cleanTitle(v.title),
-    subtitle: v.channel,
+    subtitle: noEmoji(v.channel),
     url: v.id,
     art: thumb(v.id, 'mq'),
     duration: v.duration,

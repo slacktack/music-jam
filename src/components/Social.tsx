@@ -5,7 +5,8 @@ import { colorsFor } from '../lib/color';
 import { RELAYS, useFloor } from '../lib/floor';
 import { usePlayer } from '../lib/player';
 import { useLikes } from '../lib/likes';
-import { Avatar, Cover, DotGlyph, DotText } from './Art';
+import { Avatar, Cover, DotGlyph, DotText, Eq } from './Art';
+import { REACTIONS } from '../lib/glyphs';
 import { StationTile, TrackRow } from './Lists';
 import { PALETTE } from '../lib/color';
 
@@ -89,20 +90,40 @@ const ago = (ts: number) => {
   return `${Math.floor(s / 3600)}h`;
 };
 
+function OnTheFloor() {
+  const spots = useFloor((s) => s.spots);
+  if (!spots.length) return null;
+  return (
+    <div className="chat-onfloor">
+      <span className="doto">PLAYING ON THE FLOOR</span>
+      <div className="onfloor-list">
+        {spots.slice(0, 4).map((s) => (
+          <button key={s.track.id} className="onfloor" onClick={() => usePlayer.getState().play(s.track, spots.map((x) => x.track), 'The floor', s.at)} title={`Join ${s.track.title}`}>
+            <span className="onfloor-art"><Cover track={s.track} /></span>
+            <span className="onfloor-text"><b>{s.track.title}</b><small className="doto">{s.count} IN</small></span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Chat({ embedded }: { embedded?: boolean }) {
   const messages = useFloor((s) => s.messages);
   const status = useFloor((s) => s.status);
   const myId = useFloor((s) => s.myId);
-  const users = useFloor((s) => s.users.length);
+  const users = useFloor((s) => s.users);
   const [text, setText] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const [, tick] = useState(0);
 
   useEffect(() => {
     useFloor.getState().clearUnread();
     const el = list.current;
     if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
+  useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 30000); return () => clearInterval(id); }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,35 +138,70 @@ export function Chat({ embedded }: { embedded?: boolean }) {
   return (
     <div className={`chat ${embedded ? 'embedded' : ''}`}>
       <div className="chat-head">
-        <h2>Floor chat</h2>
-        <span className="doto"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} />{status === 'live' ? `${users} HERE` : status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}</span>
+        <div>
+          <h2>Floor chat</h2>
+          <small>{status === 'live' ? 'Everyone on JAM sees this' : status === 'connecting' ? 'Connecting to the floor…' : 'Offline, retrying'}</small>
+        </div>
+        <div className="chat-live">
+          <span className="stack">{users.slice(0, 4).map((u) => <Avatar key={u.id} seed={u.id} color={u.color} size={26} />)}</span>
+          <span className="chat-count doto"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} />{String(users.length).padStart(2, '0')}</span>
+        </div>
       </div>
+
+      <OnTheFloor />
+
       <div className="chat-list" ref={list} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         {messages.length === 0 && (
           <div className="chat-empty">
-            <DotGlyph glyph="wave" size={44} mode="pulse" color="var(--accent)" />
-            <p>Quiet in here. Say namaste, drop a song rec, start something.</p>
+            <DotGlyph glyph="wave" size={52} mode="pulse" color="var(--accent)" />
+            <b>It's quiet on the floor</b>
+            <p>Say namaste, drop a song rec, start something.</p>
           </div>
         )}
         {messages.map((m, i) => {
-          const mine = m.user.id === myId;
-          const grouped = i > 0 && messages[i - 1].user.id === m.user.id && m.ts - messages[i - 1].ts < 120000;
-          return (
-            <motion.div key={m.id} className={`msg ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}`} initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.25 }}>
-              {!mine && <span className="msg-av">{!grouped && <Avatar seed={m.user.id} color={m.user.color} size={30} />}</span>}
-              <div className="bubble" style={{ '--uc': m.user.color } as React.CSSProperties}>
-                {!grouped && !mine && <div className="msg-head"><b>{m.user.name}</b>{m.on && <small>on {m.on}</small>}</div>}
-                <p>{m.text}</p>
+          if (m.sys) {
+            return (
+              <motion.div key={m.id} className="sysline" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <i style={{ background: m.user.color }} />
+                <span><b style={{ color: m.user.color }}>{m.user.name}</b> {m.text}</span>
                 <time className="doto">{ago(m.ts)}</time>
+              </motion.div>
+            );
+          }
+          const prev = messages[i - 1];
+          const mine = m.user.id === myId;
+          const grouped = !!prev && !prev.sys && prev.user.id === m.user.id && m.ts - prev.ts < 180000;
+          return (
+            <motion.div key={m.id} className={`msg ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}`} style={{ '--uc': m.user.color } as React.CSSProperties} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}>
+              {!mine && <span className="msg-av">{!grouped && <Avatar seed={m.user.id} color={m.user.color} size={32} />}</span>}
+              <div className="msg-body">
+                {!grouped && (
+                  <div className="msg-head">
+                    {!mine && <b>{m.user.name}</b>}
+                    <time className="doto">{ago(m.ts)}</time>
+                  </div>
+                )}
+                <p className="msg-text">{m.text}</p>
+                {!grouped && m.on && <span className="msg-on doto"><Eq on={false} />{m.on}</span>}
               </div>
             </motion.div>
           );
         })}
       </div>
-      <form className="chat-form" onSubmit={submit}>
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder={status === 'offline' ? 'Floor offline, retrying…' : 'Say something to the floor…'} aria-label="Message" enterKeyHint="send" autoComplete="off" />
-        <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim()} aria-label="Send"><ArrowUp size={20} /></motion.button>
-      </form>
+
+      <div className="composer">
+        <div className="quick" aria-label="Quick reactions">
+          {REACTIONS.map((r) => (
+            <motion.button key={r.id} type="button" whileTap={{ scale: 1.35, rotate: -8 }} onClick={() => useFloor.getState().react(r.id)} aria-label={`React: ${r.label}`} style={{ color: r.color }}>
+              <DotGlyph glyph={r.id} size={18} />
+            </motion.button>
+          ))}
+        </div>
+        <form className="chat-form" onSubmit={submit}>
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder="Message the floor" aria-label="Message" enterKeyHint="send" autoComplete="off" />
+          <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim()} aria-label="Send"><ArrowUp size={19} strokeWidth={2.6} /></motion.button>
+        </form>
+      </div>
     </div>
   );
 }

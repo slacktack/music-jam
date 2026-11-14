@@ -195,10 +195,10 @@ export function Collection({ kind, id }: { kind: 'vibe' | 'fest' | 'artist'; id:
           </div>
         </div>
       </header>
-      <div className="seg" role="tablist">
+      <div className="texttabs" role="tablist">
         {(['songs', 'radio'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-            <span>{t === 'songs' ? 'Songs' : 'Live radio'}</span>
+            {t === 'songs' ? 'Songs' : 'Live radio'}
           </button>
         ))}
       </div>

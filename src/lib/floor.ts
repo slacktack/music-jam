@@ -75,8 +75,8 @@ function cleanTrack(x: any): Track | null {
   return {
     id: kind === 'song' ? `yt:${url}` : str(x.id, 64) || url,
     kind,
-    title: str(x.title, 90) || 'Untitled',
-    subtitle: str(x.subtitle, 90),
+    title: str(x.title, 90).replace(/\p{Extended_Pictographic}/gu, '').trim() || 'Untitled',
+    subtitle: str(x.subtitle, 90).replace(/\p{Extended_Pictographic}/gu, '').trim(),
     url,
     art: /^https:\/\//i.test(art) ? art : '',
     duration: Number.isFinite(x.duration) ? Math.max(0, Math.min(36000, x.duration)) : undefined,
@@ -189,6 +189,11 @@ function onEvent(ev: Event) {
     if (ev.pubkey === myId || ev.created_at < now - 120) return;
     const prev = others.get(ev.pubkey);
     if (prev && prev.ts > ev.created_at) return;
+    const fresh = { name: str(c?.name, 24) || 'anon', color: color(c?.color), track: cleanTrack(c?.track) };
+    if (!c?.gone && Date.now() / 1000 - bootAt > 6) {
+      if (!prev) sysLine(ev.pubkey, fresh.name, fresh.color, fresh.track ? `joined, playing ${fresh.track.title}` : 'joined the floor');
+      else if (fresh.track && fresh.track.id !== prev.user.track?.id) sysLine(ev.pubkey, fresh.name, fresh.color, `tuned into ${fresh.track.title}`);
+    }
     if (c?.gone) others.delete(ev.pubkey);
     else others.set(ev.pubkey, { user: { id: ev.pubkey, name: str(c?.name, 24) || 'anon', color: color(c?.color), track: cleanTrack(c?.track), at: Number(c?.at) || 0 }, seen: Date.now(), ts: ev.created_at });
     recompute();
@@ -196,6 +201,12 @@ function onEvent(ev: Event) {
     if (ev.pubkey === myId || ev.created_at < now - 20 || !isReaction(c?.g)) return;
     addReaction(c.g, others.get(ev.pubkey)?.user.color || color(c?.c));
   }
+}
+
+let sysN = 0;
+function sysLine(id: string, name: string, c: string, text: string) {
+  const msg: ChatMsg = { id: `sys-${++sysN}`, user: { id, name, color: c }, text, on: '', ts: Date.now(), sys: true };
+  useFloor.setState((s) => ({ messages: [...s.messages, msg].slice(-150) }));
 }
 
 function recompute() {

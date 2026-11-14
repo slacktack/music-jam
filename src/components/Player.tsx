@@ -302,7 +302,7 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
       </div>
 
       <div className="np-foot">
-        <div className="reacts">
+        <div className={`reacts ${variant === 'panel' ? 'hide-desk' : ''}`}>
           {REACTIONS.map((r) => (
             <motion.button key={r.id} whileTap={{ scale: 1.4, rotate: -10 }} onClick={() => useFloor.getState().react(r.id)} aria-label={`React: ${r.label}`} style={{ color: r.color }}>
               <DotGlyph glyph={r.id} size={22} />
