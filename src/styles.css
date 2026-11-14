@@ -363,7 +363,15 @@ img { display: block; }
 .texttabs a, .texttabs button { position: relative; flex: none; font-family: var(--display); font-size: 20px; font-weight: 500; color: var(--faint); transition: color 0.2s; padding-bottom: 8px; }
 .texttabs a.on, .texttabs button.on { color: #fff; }
 .texttabs .on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background-image: radial-gradient(circle, var(--phosphor) 1.6px, transparent 2px); background-size: 8px 4px; }
-/* radio categories */
+/* radio categories: bold coloured text tabs */
+.colortabs { gap: 26px; scroll-padding-inline: 16px; }
+.colortabs a { font-weight: 700; font-size: 22px; letter-spacing: -0.01em; color: var(--c); opacity: 0.72; transition: opacity 0.2s, transform 0.2s var(--ease); }
+.colortabs a:hover { opacity: 0.85; }
+.colortabs a.on { color: var(--c); opacity: 1; background: linear-gradient(100deg, var(--c), var(--c2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.colortabs a.on::after { background-image: radial-gradient(circle, var(--c) 1.8px, transparent 2.2px); height: 5px; background-size: 9px 5px; }
+[data-theme='light'] .colortabs a { opacity: 0.7; filter: saturate(1.2) brightness(0.85); }
+[data-theme='light'] .colortabs a.on { opacity: 1; filter: saturate(1.3) brightness(0.9); }
+
 .cats { position: sticky; top: 0; z-index: 5; display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 10px; overflow-x: auto; margin: -6px -16px 0; padding: 10px 16px 12px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; background: linear-gradient(var(--bg) 78%, transparent); }
 .cat { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: flex-end; height: 84px; padding: 10px 12px; border-radius: 20px; background: #0a0a0e; border: 1px solid var(--line2); color: #fff; scroll-snap-align: start; transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s; }
 .cat-art { position: absolute; inset: 0; z-index: -1; opacity: 0.45; transition: opacity 0.3s; }

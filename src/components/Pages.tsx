@@ -331,7 +331,7 @@ export function RadioHub({ tab }: { tab: string }) {
   const current = RADIO_TABS.find((t) => t.id === tab) || RADIO_TABS[0];
   const catsRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const el = catsRef.current?.querySelector<HTMLElement>('.cat.on');
+    const el = catsRef.current?.querySelector<HTMLElement>('a.on');
     el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [current.id]);
   const playing = usePlayer((s) => s.track?.kind === 'radio' && s.status === 'playing');
@@ -344,15 +344,13 @@ export function RadioHub({ tab }: { tab: string }) {
           <p>Thousands of live stations. They keep playing with your screen off, so this is the one for the gym, the drive and the night.</p>
         </div>
       </header>
-      <nav ref={catsRef} className="cats" aria-label="Radio categories">
+      <nav ref={catsRef} className="texttabs colortabs" aria-label="Radio categories">
         {RADIO_TABS.map((t) => (
-          <a key={t.id} {...linkProps(`/radio/${t.id}`)} className={`cat ${t.id === current.id ? 'on' : ''}`} aria-current={t.id === current.id ? 'page' : undefined} style={{ '--c': t.colors[0], '--c2': t.colors[1] } as React.CSSProperties}>
-            <span className="cat-art"><FlowArt seed={`cat-${t.id}`} colors={t.colors} pattern={t.pattern} density={0.55} energy={0.6} animate={t.id === current.id && !coarse} /></span>
-            <span className="cat-text"><b>{t.label}</b><small>{t.sub}</small></span>
+          <a key={t.id} {...linkProps(`/radio/${t.id}`)} className={t.id === current.id ? 'on' : ''} aria-current={t.id === current.id ? 'page' : undefined} style={{ '--c': t.colors[0], '--c2': t.colors[1] } as React.CSSProperties}>
+            {t.label}
           </a>
         ))}
       </nav>
-      <div className="cat-now"><i style={{ background: current.colors[0] }} /><span>{current.label}</span><small className="doto">LIVE STATIONS</small></div>
       <StationGrid key={current.id} queries={current.radio} context={`${current.label} radio`} />
     </div>
   );
