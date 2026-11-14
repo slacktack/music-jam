@@ -71,3 +71,4 @@ export const setVolume = (v: number) => call('setVolume', Math.round(v * 100));
 export const setMuted = (m: boolean) => call(m ? 'mute' : 'unMute');
 export const time = (): number => Number(call('getCurrentTime')) || 0;
 export const duration = (): number => Number(call('getDuration')) || 0;
+export const videoId = (): string => (call('getVideoData') as any)?.video_id || '';

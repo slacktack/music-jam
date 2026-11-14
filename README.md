@@ -1,12 +1,12 @@
 # JAM — every radio, one floor
 
-A web app (mobile + desktop) for listening to free live internet radio **together**. There are no rooms and no sign-up: everyone who opens the site lands on the same global "floor", can see who else is here and what they're listening to, jump onto anyone's station in one tap, chat, and throw emoji reactions.
+A mobile-first web app for listening to free live radio and songs **together**. There are no rooms and no sign-up: everyone who opens the site lands on one global "floor", sees who's here and what they're playing, joins anyone in one tap (songs join at the same second), chats and throws reactions. The catalogue is **desi first**: Hindi, Punjabi and Retro Hindi up top, then 14 more Indian languages and genres, 25 singers, festivals (Chhath, Diwali, Gurpurab, Holi, Navratri…) and moods like Gym, then global genres.
 
-This file is the source of truth for humans and AI agents working on the repo.
+This file is the source of truth for humans and AI agents working on the repo. `AGENTS.md` points here.
 
 ## Quick start
 
-Requires Node 20+.
+Node 20+.
 
 ```bash
 npm install
@@ -16,131 +16,109 @@ npm install
 npm run dev
 ```
 
-`npm run dev` starts two processes: Vite on http://localhost:5173 (the UI, with `/ws` proxied) and the floor server on port 8787.
-
-Production (one process serves the built site and the WebSocket):
-
-```bash
-npm run build
-```
-
-```bash
-npm start
-```
+Vite on http://localhost:5173 serves the UI and `/api/search`. The floor uses public Nostr relays by default, so nothing else needs to run.
 
 | Script | What it does |
 | --- | --- |
-| `npm run dev` | Vite dev server + floor server, hot reload |
+| `npm run dev` | Vite dev server (UI + `/api/search` middleware) |
 | `npm run build` | Type-check (`tsc --noEmit`) then build to `dist/` |
-| `npm start` | `node server/index.js`: serves `dist/` and `/ws` on `PORT` (default 8787) |
-| `npm run preview` | build + start |
+| `npm start` | `server/index.js`: serves `dist/`, `/api/search`, and a Nostr relay at `/relay` |
+| `npm run relay` | Standalone local Nostr relay on `ws://localhost:7777` |
+| `npm run icons` | Re-render PNG app icons from `public/icons/icon.svg` (needs Playwright) |
 
-There is no test suite or linter yet. `npm run build` is the check to run before committing.
+There is no unit test suite. `npm run build` is the check before committing; for UI changes also look at a 390px-wide phone viewport and a ≥1280px desktop viewport.
 
-## Stack
+## Deploying
 
-- **Frontend:** React 19 + TypeScript + Vite. State in [zustand](https://github.com/pmndrs/zustand) stores. Animation with [motion](https://motion.dev) (`motion/react`). Icons from `lucide-react`. Styling is one hand-written stylesheet, `src/styles.css` (no Tailwind, no CSS-in-JS).
-- **Fonts (self-hosted via Fontsource):** Geist Variable (UI) and Doto (the dot-matrix display face used for counters and labels, class `.doto`).
-- **Backend:** `server/index.js`, a single dependency-light Node file (`ws` only). All state is in memory.
-- **Streams:** plain `<audio>`; `hls.js` is lazy-loaded only for `.m3u8` stations.
+**Vercel (primary).** Pushes deploy automatically. `vercel.json` builds with Vite, rewrites every non-API path to `index.html` (real URLs like `/vibe/hindi` work), and `api/search.js` becomes a serverless function. No environment variables are required.
+
+**Any Node host** (Render, Railway, Fly, VPS): `npm run build && npm start`. `render.yaml` is ready for Render.
+
+Optional build-time env vars:
+
+| Var | Default | Meaning |
+| --- | --- | --- |
+| `VITE_RELAYS` | `wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net,wss://nostr.mom` | Comma-separated Nostr relays for the floor. Point at `wss://your-host/relay` to self-host. |
+| `VITE_FLOOR` | `jam-floor-v2` | Floor name (the Nostr `t` tag). Change it to start a fresh, separate floor. |
+
+## Data sources
+
+| Source | Used for | How |
+| --- | --- | --- |
+| [Radio Browser](https://api.radio-browser.info/) (`de1`/`de2`/`all.api.radio-browser.info`) | All live radio: search, languages, genres, singer stations, station lookup for share links | Free, no key, CORS. Called from the browser in `src/lib/radio.ts`. Only `https://` streams are kept (mixed content). Plays are reported back via `/json/url/{uuid}` per their etiquette. |
+| Each station's stream URL | Radio audio | Plain `<audio>` (plus lazy `hls.js` for `.m3u8`). **Keeps playing with the screen locked.** Stations go offline often; the UI shows "Off air". |
+| YouTube | Songs: search + playback | `server/yt.js` calls YouTube's own web search JSON endpoint (`youtubei/v1/search`, fallback: parse the results page). No API key, region `IN`. Unofficial and may change; if song search breaks, look there first. Playback uses the official IFrame Player API (`src/lib/yt.ts`, `youtube-nocookie.com`). **Embeds pause when the screen locks** (only YouTube Premium avoids that), so the UI tells people to use radio for screen-off listening. Videos whose owners block embedding are skipped automatically. |
+| `i.ytimg.com` | Song thumbnails and lock-screen artwork | `hq`/`sd`/`maxres` thumbnails. |
+| Public Nostr relays | The floor: presence, chat, reactions | See below. |
+
+No API keys, no accounts, no database.
+
+## The floor (realtime over Nostr)
+
+`src/lib/floor.ts`. Each browser generates a throwaway secp256k1 key (`localStorage['jam.sk']`) and signs events with `nostr-tools`. All events carry the tag `["t", VITE_FLOOR]`.
+
+| Kind | Type | Content (JSON) | Purpose |
+| --- | --- | --- | --- |
+| `30778` | parameterized replaceable (`d` = floor) | `{name, color, track, at}` or `{gone:true}` | My current status. Re-sent every 25 s; others drop anyone silent for 75 s. `at` = epoch ms of song position 0 so joiners seek to the same second. |
+| `4778` | regular (stored) | `{text, name, color, on}` | Chat. Last 12 h / 120 messages load on open. |
+| `24778` | ephemeral | `{g, c}` | Reactions (`g` is one of the dot glyph ids in `src/lib/glyphs.ts`). |
+
+Everything received is validated (`cleanTrack`, string limits, `https://` only, 11-char YouTube ids). Client-side rate limits: 1 chat/1.2 s, 1 reaction/350 ms. Note that anything posted is public on those relays.
+
+`server/relay.js` is a tiny in-memory NIP-01 relay used for local testing and self-hosting (mounted at `/relay` by `server/index.js`).
+
+## Routes
+
+Real paths via the History API (`src/lib/router.ts`):
+
+`/` home · `/search?q=` · `/vibe/:id` · `/artist/:id` · `/fest/:id` · `/floor` · `/chat` (mobile) · `/likes` · `/r/:stationuuid` shared radio · `/s/:videoId?t=title&a=artist` shared song.
+
+Share links open the app with that station/song loaded and the player open, ready to tap play (browsers block autoplay with sound).
 
 ## File map
 
 ```
-index.html              Vite entry
-server/index.js         Static file server + the floor (WebSocket at /ws)
-src/main.tsx            Boot: fonts, styles, startFloor(), render
-src/App.tsx             Shell: ambient background, rail/tab bar, identity editor, sheet, reactions, toasts
-src/styles.css          All styling + design tokens (see "Design system")
-src/lib/types.ts        Station, FloorUser, FloorStation, ChatMsg
-src/lib/radio.ts        Station directory client, VIBES (genre/language presets), FALLBACK list
-src/lib/player.ts       Audio engine + player store (play/toggle/skip/volume, Media Session)
-src/lib/floor.ts        WebSocket client + floor store (presence, chat, reactions, identity)
-src/lib/likes.ts        Liked stations (localStorage)
-src/lib/color.ts        Palette + deterministic colors/PRNG from a seed
-src/lib/toast.ts        Tiny toast store
-src/components/Art.tsx          GlyphArt (generated covers), Avatar, EqBars, Visualizer
-src/components/StationCard.tsx  Station tile
-src/components/Discover.tsx     "Radio" tab: hero, search, vibe chips, grids
-src/components/Floor.tsx        FloorView (clusters + people), LikesView, Chat
-src/components/NowPlaying.tsx   Full player (desktop side card / mobile sheet) + MiniPlayer
-vercel.json             Static deploy of the frontend on Vercel
-render.yaml             Full deploy (site + floor server) on Render
+api/search.js              Vercel function -> server/yt.js
+server/yt.js               Keyless YouTube search (shared by Vercel, Node server, Vite dev)
+server/index.js            Node host: static dist/, /api/search, Nostr relay at /relay
+server/relay.js            Minimal Nostr relay (NIP-01), in-memory
+scripts/icons.mjs          Renders public/icons/*.png
+public/                    manifest.webmanifest, sw.js (app-shell cache), icons
+src/main.tsx               Boot: fonts, styles, render, startFloor(), service worker
+src/App.tsx                Shell: rail/tab bar, routes, mobile player sheet, reactions, toasts, shared links
+src/styles.css             All styles. Mobile first; desktop at >=1024px. Tokens at the top.
+src/lib/catalog.ts         VIBES (desi first), ARTISTS, FESTIVALS (+ dates), search shortcuts
+src/lib/radio.ts           Radio Browser client
+src/lib/songs.ts           /api/search client, title cleanup
+src/lib/player.ts          One player for radio (<audio>) and songs (YouTube); Media Session; lock-screen artwork
+src/lib/yt.ts              YouTube IFrame API wrapper
+src/lib/floor.ts           Nostr floor client + store
+src/lib/flow.ts            Generative line-art renderer (waves, zigzag, rings, rays, contour, grid)
+src/lib/artwork.ts         512px generated lock-screen artwork for radio
+src/lib/glyphs.ts          7x7 dot glyphs for reactions/empty states
+src/lib/{router,share,likes,toast,color,types}.ts
+src/components/Art.tsx     FlowArt, DotText (cursor-reactive dot headline), DotGlyph, Avatar, Cover, Eq
+src/components/Pages.tsx   Home, Collection (vibe/artist/festival), Search
+src/components/Player.tsx  VideoHost/VideoSlot, Waveform, NowPlaying, MiniPlayer
+src/components/Social.tsx  FloorView, Chat, Likes
+src/components/{Lists,Tiles,collection,canvas}.ts(x)
 ```
 
-## Data sources
+## Adding content
 
-| Source | Used for | Notes |
-| --- | --- | --- |
-| [Radio Browser API](https://api.radio-browser.info/) (`de1` / `de2` / `all.api.radio-browser.info`) | The whole station catalogue: search, genres, languages, trending | Free, community-run, no API key, CORS enabled. Called **directly from the browser** in `src/lib/radio.ts`. Hosts are tried in order and the first working one is remembered. Endpoint: `/json/stations/search` with `hidebroken=true&is_https=true`. Plays are reported back via `/json/url/{stationuuid}` (their etiquette; it feeds trending). |
-| Each station's own stream URL (`url_resolved`) | The audio | Streams come from thousands of third-party broadcasters. Only `https://` streams are kept (the site is HTTPS, so `http://` would be blocked as mixed content). Stations go offline regularly; the player shows "Off air" and a toast. |
-| Station `favicon` URLs | Cover art, when usable | Only shown if the image loads and is at least 96px wide; otherwise the generated glyph art is used. |
-| [SomaFM](https://somafm.com) (`ice1.somafm.com`) | `FALLBACK` list in `radio.ts` | Shown only if the directory can't be reached. Listener-supported, commercial-free. |
-
-No API keys or secrets anywhere. No user accounts. No database.
-
-### Vibes (the chips)
-
-`VIBES` in `src/lib/radio.ts` is the list of chips. Each vibe is `{ id, label, color, queries }` where `queries` is an array of Radio Browser search params; the result lists are fetched in parallel, interleaved, and de-duplicated by id, normalised name and URL. To add a language or genre, add one entry. Useful params: `language` (e.g. `hindi`, `punjabi`, `tamil`), `tag` (substring match), `name` (substring match), `countrycode` (`IN`, `US`…), `order` (`clickcount`, `clicktrend`, `votes`).
-
-Current vibes: Trending, Hindi, Retro Hindi, Bollywood, Punjabi, English Hits, Lo-fi, Hip-hop, Electronic, House, Techno, Ghazal & Sufi, Tamil, Rock, Jazz, Chill, 90s, K-pop, Synthwave, Drum & Bass, Reggae, Latin, Classical, Metal. The directory has no "retro Hindi" tag worth relying on, so that vibe is assembled from several name/tag queries (retro, 90s, gold, Kishore, Rafi, Lata, Vividh Bharati…).
-
-## The floor (realtime)
-
-One WebSocket endpoint, `/ws`, one global space. JSON messages, max 4 KB.
-
-Client → server:
-
-| `type` | Payload | Meaning |
-| --- | --- | --- |
-| `hello` | `name`, `color`, `station \| null` | Join, or update identity. Server replies `welcome` on first hello. |
-| `tune` | `station \| null` | What I'm listening to now (`null` = paused/stopped). |
-| `chat` | `text` (≤280) | Message to everyone. |
-| `react` | `emoji` | Floating emoji for everyone. |
-
-Server → client:
-
-| `type` | Payload |
-| --- | --- |
-| `welcome` | `id`, `history` (last 60 chat messages) |
-| `presence` | `total`, `users[]` (`id,name,color,stationId`; capped at 250), `stations[]` (station + `count`, top 60). Broadcast at most every 800 ms, only when something changed. |
-| `chat` | `id`, `user`, `text`, `station`, `ts` |
-| `react` | `emoji`, `user`, `stationId` |
-
-Server rules: every string is truncated and stripped of control characters; station URLs must be `https://`; chat is limited to 6 messages / 10 s, reactions 12 / 5 s, tunes 20 / 10 s per connection; dead sockets are dropped by a 30 s ping. State is in memory, so a restart clears chat history, and running more than one server instance would split the floor (add Redis pub/sub or similar before scaling horizontally).
-
-The client (`src/lib/floor.ts`) reconnects with exponential backoff and the app stays fully usable for listening while the floor is offline. A user counts as "on" a station only while their player is loading or playing.
-
-Identity is a random name + color stored in `localStorage` (`jam.me`), editable from the chip in the top bar. Other keys: `jam.likes`, `jam.volume`, `jam.vibe`.
+- **Language/genre:** add to `VIBES` in `catalog.ts`. `radio` is a list of Radio Browser search params (`language`, `tag`, `name`, `countrycode`, `order`), `songs` is a YouTube query. Desi entries set `desi: true`.
+- **Singer:** add to `ARTISTS` with `artist(id, label, sub, colors, pattern, stationNameOrNull, fallbackQueries)`. Check the directory first for a dedicated station: `https://de1.api.radio-browser.info/json/stations/search?name=<singer>&countrycode=IN`.
+- **Festival/mood:** add to `FESTIVALS`. `dates` are the main day per year (lunar festivals are approximate; update yearly); `before`/`after` set the "Happening now" window. Empty `dates` = mood, always shown. `aliases` power search shortcuts (typos like "chath" included).
 
 ## Design system
 
-- Dark, glassy, with a dot-matrix "glyph" motif. Tokens live at the top of `src/styles.css`.
-- Palette (`src/lib/color.ts`): indigo `#5B5BFF`, phosphor `#2BD94A`, red `#E10600`, amber `#FFB300`, cyan `#00D1FF`, magenta `#FF2D95`, violet `#9B5CFF`, orange `#FF6A00`.
-- Every station gets a deterministic color pair from its id (`colorsFor`). The playing station's pair is written to `--accent` / `--accent2` on `<html>`; these are registered `@property` colors, so the ambient background, glows, nav pill and buttons cross-fade when the station changes.
-- Cover art and avatars are generated SVG dot patterns seeded by id/name (`GlyphArt`, `Avatar`), so nothing depends on third-party images.
-- The visualizer is synthesized, not real audio analysis: radio streams are cross-origin without CORS headers, so Web Audio can't read them.
-- Layout: under 1024px it is a single column with a floating dock (mini player + 4 tabs: Radio, Floor, Chat, Likes) and a draggable full-screen player sheet. From 1024px it is a 3-column grid: icon rail, content, and a side column with the player and floor chat always visible.
-- `prefers-reduced-motion` is respected.
+- Near-black base (`#050507`), glass panels, a dot-matrix motif (Doto font for numbers/labels, canvas `DotText` hero, SVG `DotGlyph`s), and generative line art (`FlowArt`) instead of stock imagery. No emoji anywhere.
+- Palette (`src/lib/color.ts`): saffron `#FF8A00`, marigold `#FFC300`, red `#E10600`, phosphor `#2BD94A`, lime `#D7FF3A`, indigo `#5B5BFF`, violet `#9B5CFF`, magenta `#FF2D95`, cyan `#00D1FF`, teal `#00E0B0`. Every track gets a stable colour pair; the playing pair is written to `--accent`/`--accent2` and the whole app cross-fades to it.
+- Scrollbars are hidden everywhere; layout never scrolls horizontally.
+- Canvases only animate while visible and the tab is in the foreground; `prefers-reduced-motion` is respected.
 
-## Deploying
+## Known limits
 
-The app has two parts: static files (`dist/`) and the long-lived floor WebSocket server.
-
-**Option A, everything on one Node host (simplest).** Render, Railway, Fly.io, a VPS: build with `npm run build`, run `npm start`, expose `PORT`. `render.yaml` is ready for Render.
-
-**Option B, frontend on Vercel + floor server elsewhere.** `vercel.json` deploys the static site. Vercel functions can't hold WebSocket connections open, so the floor server must run on a Node host (Option A's host works; it also allows cross-origin sockets). Then set this environment variable in the Vercel project and redeploy:
-
-```
-VITE_WS_URL=wss://your-floor-host.example.com/ws
-```
-
-Without `VITE_WS_URL` the Vercel site still plays radio, but the floor shows as offline (no presence or chat).
-
-## Conventions
-
-- Keep the server a single file with no framework unless there's a real need.
-- New UI goes in `src/components`, state in a zustand store under `src/lib`. Reuse `StationCard`, `GlyphArt`, `Avatar`.
-- Never render user-supplied strings as HTML; React text nodes only. Validate anything new on the server too.
-- Only `https://` stream and image URLs.
-- Check both breakpoints (390px wide and ≥1280px wide) after UI changes.
+- YouTube songs stop when the phone locks; radio doesn't. Phone FM tuners are not reachable from the web.
+- Song search depends on an unofficial YouTube endpoint.
+- Public relays can be slow or drop events; the floor degrades gracefully and music keeps working.

@@ -1,12 +1,12 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Heart, Loader2, Pause, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, Loader2, Pause, Play } from 'lucide-react';
 import type { Track } from '../lib/types';
 import { colorsFor } from '../lib/color';
 import { isLive, usePlayer } from '../lib/player';
 import { useLikes, useLiked } from '../lib/likes';
 import { useFloor } from '../lib/floor';
-import { Cover, Eq } from './Art';
+import { Cover, DotLoader, Eq } from './Art';
 
 export const fmt = (s: number) => {
   if (!Number.isFinite(s) || s <= 0) return '0:00';
@@ -88,9 +88,22 @@ export function useListeners() {
 }
 
 export function RowSkeleton({ n = 8 }: { n?: number }) {
-  return <div className="rows">{Array.from({ length: n }, (_, i) => <div key={i} className="trow skel" style={{ animationDelay: `${i * 70}ms` }}><span className="trow-art" /><span className="trow-text"><b /><small /></span></div>)}</div>;
+  return <div className="rows skel-rows"><DotLoader label="Finding songs" />{Array.from({ length: n }, (_, i) => <div key={i} className="trow skel" style={{ animationDelay: `${i * 70}ms` }}><span className="trow-art" /><span className="trow-text"><b /><small /></span></div>)}</div>;
 }
 
 export function TileSkeleton({ n = 6 }: { n?: number }) {
-  return <div className="tiles">{Array.from({ length: n }, (_, i) => <div key={i} className="tile skel" style={{ animationDelay: `${i * 70}ms` }}><div className="tile-art" /><div className="sk-line" /><div className="sk-line short" /></div>)}</div>;
+  return <div className="tiles skel-rows"><DotLoader label="Tuning stations" />{Array.from({ length: n }, (_, i) => <div key={i} className="tile skel" style={{ animationDelay: `${i * 70}ms` }}><div className="tile-art" /><div className="sk-line" /><div className="sk-line short" /></div>)}</div>;
+}
+
+/** Horizontal rail; on desktop it gets arrow buttons since there's no visible scrollbar. */
+export function Rail({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const by = (dir: number) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.8, behavior: 'smooth' });
+  return (
+    <div className="rail-wrap">
+      <div ref={ref} className={`rail ${className}`}>{children}</div>
+      <button className="rail-arrow l" onClick={() => by(-1)} aria-label="Scroll left"><ChevronLeft size={20} /></button>
+      <button className="rail-arrow r" onClick={() => by(1)} aria-label="Scroll right"><ChevronRight size={20} /></button>
+    </div>
+  );
 }

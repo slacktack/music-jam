@@ -4,11 +4,16 @@ import { Play } from 'lucide-react';
 import type { Festival, FestState, Vibe } from '../lib/catalog';
 import { linkProps } from '../lib/router';
 import { FlowArt } from './Art';
+import { coarse } from './canvas';
+import { useState } from 'react';
 import { playCollection } from './collection';
 
 export const VibeTile = memo(function VibeTile({ vibe, size = 'big', index = 0 }: { vibe: Vibe; size?: 'big' | 'small'; index?: number }) {
+  const [hover, setHover] = useState(false);
   return (
     <motion.a
+      onHoverStart={() => setHover(true)}
+      onHoverEnd={() => setHover(false)}
       {...linkProps(`/vibe/${vibe.id}`)}
       className={`vtile ${size}`}
       style={{ '--c': vibe.colors[0], '--c2': vibe.colors[1] } as React.CSSProperties}
@@ -17,7 +22,7 @@ export const VibeTile = memo(function VibeTile({ vibe, size = 'big', index = 0 }
       transition={{ duration: 0.5, delay: index * 0.05, ease: [0.2, 0.8, 0.2, 1] }}
       whileTap={{ scale: 0.97 }}
     >
-      <FlowArt seed={vibe.id} colors={vibe.colors} pattern={vibe.pattern} animate={size === 'big'} energy={0.7} density={size === 'big' ? 1 : 0.7} />
+      <FlowArt seed={vibe.id} colors={vibe.colors} pattern={vibe.pattern} animate={hover || (size === 'big' && !coarse)} energy={0.7} density={size === 'big' ? 1 : 0.7} />
       <span className="vtile-shade" />
       <span className="vtile-text">
         <b>{vibe.label}</b>
@@ -56,7 +61,7 @@ export const FestCard = memo(function FestCard({ fest, state, index = 0 }: { fes
       transition={{ duration: 0.45, delay: Math.min(index, 8) * 0.04 }}
       whileTap={{ scale: 0.97 }}
     >
-      <FlowArt seed={fest.id} colors={fest.colors} pattern={fest.pattern} animate={state.state === 'now'} energy={0.8} density={0.8} />
+      <FlowArt seed={fest.id} colors={fest.colors} pattern={fest.pattern} animate={state.state === 'now' && !coarse} energy={0.8} density={0.8} />
       <span className="vtile-shade" />
       <span className={`pill ${state.state}`}>{state.state === 'now' && <i className="live-dot" />}{festLabel(state)}</span>
       <span className="vtile-text">

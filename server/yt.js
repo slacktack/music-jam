@@ -63,6 +63,21 @@ async function viaHtml(q) {
   return out;
 }
 
+// oEmbed answers 401/403 for videos whose owners disabled embedding; those
+// would only error in our player, so drop them up front.
+const embedCache = new Map();
+async function embeddable(id) {
+  if (embedCache.has(id)) return embedCache.get(id);
+  let ok = true;
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`, { signal: AbortSignal.timeout(3000) });
+    ok = r.status !== 401 && r.status !== 403 && r.status !== 404;
+  } catch {}
+  if (embedCache.size > 5000) embedCache.clear();
+  embedCache.set(id, ok);
+  return ok;
+}
+
 export async function searchYouTube(rawQuery) {
   const q = String(rawQuery || '').replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!q) return [];
@@ -80,8 +95,10 @@ export async function searchYouTube(rawQuery) {
   items = items.filter((v) => v.title && (v.live || (v.duration >= 60 && v.duration <= 60 * 20)));
   const seen = new Set();
   items = items.filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 40);
+  const ok = await Promise.all(items.map((v) => embeddable(v.id)));
+  items = items.filter((_, i) => ok[i]);
   if (cache.size > 500) cache.clear();
-  cache.set(key, { t: Date.now(), items });
+  if (items.length) cache.set(key, { t: Date.now(), items }); // never cache a hiccup
   return items;
 }
 
@@ -92,7 +109,7 @@ export async function handleSearch(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   try {
     const items = await searchYouTube(q);
-    res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', items.length ? 'public, max-age=600, s-maxage=3600, stale-while-revalidate=86400' : 'no-store');
     res.statusCode = 200;
     res.end(JSON.stringify({ items }));
   } catch (e) {

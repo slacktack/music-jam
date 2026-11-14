@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Heart, Home as HomeIcon, MessageCircle, Search as SearchIcon, Users } from 'lucide-react';
+import { useRef } from 'react';
 import { COLORS, colorsFor } from './lib/color';
 import { usePlayer, warmUpYouTube } from './lib/player';
 import { useFloor } from './lib/floor';
@@ -11,19 +12,43 @@ import { thumb } from './lib/songs';
 import { Avatar, DotGlyph } from './components/Art';
 import { Collection, Home, Search } from './components/Pages';
 import { Chat, FloorView, Likes } from './components/Social';
-import { MiniPlayer, NowPlaying, VideoHost } from './components/Player';
+import { MiniPlayer, NowPlaying, Theater, VideoHost } from './components/Player';
+import { setSheetOpen } from './components/canvas';
 
 const mq = matchMedia('(min-width: 1024px)');
 const useDesktop = () => useSyncExternalStore((cb) => (mq.addEventListener('change', cb), () => mq.removeEventListener('change', cb)), () => mq.matches);
 
+const LOGO = ['..XXX..XXX..X...X', '....X.X...X.XX.XX', '....X.X...X.X.X.X', '....X.XXXXX.X.X.X', 'X...X.X...X.X...X', 'X...X.X...X.X...X', '.XXX..X...X.X...X'];
+
 function Logo() {
   return (
     <a className="logo" {...linkProps('/')} aria-label="JAM home">
-      <svg viewBox="0 0 34 14" width="54" height="22" aria-hidden>
-        {['XXX..XXX.X...X', '..X.X...XXX.XX', '..X.XXXXX.X.X.X', 'X.X.X...X...X', 'XXX.X...X...X'].map((row, y) => [...row].map((c, x) => c === 'X' && <circle key={`${x}${y}`} cx={1.4 + x * 2.6} cy={1.4 + y * 2.8} r="1.1" fill="currentColor" />))}
+      <svg viewBox="0 0 51 21" width="58" height="24" aria-hidden>
+        {LOGO.flatMap((row, y) => [...row].map((c, x) => (c === 'X' ? <circle key={`${x}-${y}`} cx={1.5 + x * 3} cy={1.5 + y * 3} r="1.25" fill="currentColor" /> : null)))}
       </svg>
       <i />
     </a>
+  );
+}
+
+function TopSearch() {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !/INPUT|TEXTAREA/.test((e.target as HTMLElement).tagName))) {
+        e.preventDefault();
+        ref.current?.focus();
+      }
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <label className="top-search">
+      <SearchIcon size={18} />
+      <input ref={ref} placeholder="Search songs, singers, stations, festivals" aria-label="Search" onKeyDown={(e) => { if (e.key === 'Enter' && e.currentTarget.value.trim()) go(`/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`); }} onChange={(e) => { const v = e.target.value; if (v.trim().length > 1) go(`/search?q=${encodeURIComponent(v)}`, { replace: location.pathname === '/search' }); }} />
+      <kbd className="doto">⌘K</kbd>
+    </label>
   );
 }
 
@@ -68,6 +93,7 @@ function Reactions() {
         {reactions.map((r) => (
           <motion.span key={r.key} style={{ left: `${r.x}%`, color: r.color, filter: `drop-shadow(0 0 12px ${r.color})` }} initial={{ y: 0, opacity: 0, scale: 0.3 }} animate={{ y: '-62vh', opacity: [0, 1, 1, 0], scale: [0.3, 1.6, 1.1, 0.8], rotate: [0, -12, 10, 0] }} exit={{ opacity: 0 }} transition={{ duration: 3.2, ease: [0.2, 0.7, 0.3, 1] }}>
             <DotGlyph glyph={r.glyph} size={46} mode="build" />
+            <span className="burst">{Array.from({ length: 10 }, (_, i) => <i key={i} style={{ '--a': `${i * 36}deg` } as React.CSSProperties} />)}</span>
           </motion.span>
         ))}
       </AnimatePresence>
@@ -140,6 +166,7 @@ export function App() {
   }, []);
 
   useEffect(() => { if (desktop) setSheet(false); }, [desktop]);
+  useEffect(() => setSheetOpen(sheet), [sheet]);
   useEffect(() => { if (route.name === 'chat' && desktop) go('/floor', { replace: true }); }, [route, desktop]);
 
   // Back button closes the player sheet on phones.
@@ -186,12 +213,12 @@ export function App() {
     <div className={`app ${playing ? 'is-playing' : ''} ${track ? 'has-track' : ''} ${desktop ? 'desk' : 'mob'}`}>
       <div className="bg" aria-hidden><i className="glow g1" /><i className="glow g2" /><i className="dots" /></div>
 
-      {desktop && <nav className="rail" aria-label="Main"><Logo /><div className="rail-nav">{nav}</div></nav>}
+      {desktop && <nav className="siderail" aria-label="Main"><Logo /><div className="rail-nav">{nav}</div></nav>}
 
       <main className="main">
         <div className="topbar">
           {!desktop && <Logo />}
-          <span className="grow" />
+          {desktop && route.name !== 'search' ? <TopSearch /> : <span className="grow" />}
           <Identity />
         </div>
         <AnimatePresence mode="wait" initial={false}>
@@ -233,6 +260,7 @@ export function App() {
         </>
       )}
 
+      <Theater />
       <VideoHost />
       <Reactions />
       <Toasts />

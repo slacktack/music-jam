@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronDown, Loader2, Pause, Play, Share2, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, Loader2, Maximize2, Pause, Play, Share2, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
+import { create } from 'zustand';
+import { AnimatePresence } from 'motion/react';
 import { colorsFor, rng } from '../lib/color';
 import { patternFor } from '../lib/flow';
 import { REACTIONS } from '../lib/glyphs';
@@ -10,7 +12,7 @@ import { shareTrack } from '../lib/share';
 import type { Track } from '../lib/types';
 import { Avatar, Cover, DotGlyph, Eq, FlowArt } from './Art';
 import { LikeButton, fmt } from './Lists';
-import { useCanvas } from './canvas';
+import { coarse, useCanvas } from './canvas';
 
 // ------------------------------------------------------------ video host
 // One YouTube iframe for the whole app. It is never moved in the DOM (that would
@@ -37,9 +39,14 @@ export function VideoHost() {
       host.current!.style.visibility = 'hidden';
       return;
     }
+    // Follow the active slot every frame only while things move (scroll, drag,
+    // sheet animation); otherwise check a few times a second.
     let raf = 0;
+    let fastUntil = performance.now() + 1500;
+    const boost = () => { fastUntil = performance.now() + 900; if (!raf) raf = requestAnimationFrame(tick); };
     const tick = () => {
-      raf = requestAnimationFrame(tick);
+      raf = 0;
+      if (performance.now() < fastUntil) raf = requestAnimationFrame(tick);
       const el = host.current!;
       let best: HTMLElement | null = null;
       let bestP = -1;
@@ -52,16 +59,75 @@ export function VideoHost() {
       if (!best) { el.style.visibility = 'hidden'; return; }
       const r = best.getBoundingClientRect();
       el.style.visibility = 'visible';
-      el.style.transform = `translate(${r.left}px, ${r.top}px)`;
-      el.style.width = `${r.width}px`;
-      el.style.height = `${r.height}px`;
+      // A rotated slot (theater on a portrait phone): use its unrotated size and rotate the host too.
+      const rot = bestP === 100 && r.height > r.width && best.offsetWidth > best.offsetHeight;
+      const w = rot ? best.offsetWidth : r.width;
+      const h = rot ? best.offsetHeight : r.height;
+      el.style.width = `${w}px`;
+      el.style.height = `${h}px`;
+      el.style.transform = rot
+        ? `translate(${r.left + r.width / 2 - w / 2}px, ${r.top + r.height / 2 - h / 2}px) rotate(90deg)`
+        : `translate(${r.left}px, ${r.top}px)`;
       el.style.zIndex = String(bestP);
       el.style.borderRadius = getComputedStyle(best).borderRadius;
     };
     tick();
-    return () => cancelAnimationFrame(raf);
+    const poll = setInterval(tick, 250);
+    const evs = ['scroll', 'pointermove', 'touchmove', 'resize', 'transitionstart', 'wheel'] as const;
+    evs.forEach((e) => addEventListener(e, boost, { passive: true, capture: true }));
+    const unsub = usePlayer.subscribe(boost);
+    const mo = new MutationObserver(boost);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(poll);
+      unsub();
+      mo.disconnect();
+      evs.forEach((e) => removeEventListener(e, boost, { capture: true }));
+    };
   }, [isSong]);
   return <div ref={host} id="yt-host" aria-hidden><div id="yt-player" /></div>;
+}
+
+// ------------------------------------------------------------ full-screen video
+
+const useTheater = create<{ open: boolean }>(() => ({ open: false }));
+
+async function openTheater() {
+  useTheater.setState({ open: true });
+  try {
+    await document.documentElement.requestFullscreen?.();
+    await (screen.orientation as any)?.lock?.('landscape');
+  } catch {}
+}
+function closeTheater() {
+  useTheater.setState({ open: false });
+  try { (screen.orientation as any)?.unlock?.(); } catch {}
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+if (typeof document !== 'undefined') document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && useTheater.getState().open) useTheater.setState({ open: false }); });
+
+/** Full-screen video. Rotates to landscape on phones that can't lock orientation. */
+export function Theater() {
+  const open = useTheater((s) => s.open);
+  const track = usePlayer((s) => s.track);
+  const status = usePlayer((s) => s.status);
+  useEffect(() => { if (open && track?.kind !== 'song') closeTheater(); }, [open, track]);
+  return (
+    <AnimatePresence>
+      {open && track?.kind === 'song' && (
+        <motion.div className="theater" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onKeyDown={(e) => e.key === 'Escape' && closeTheater()}>
+          <div className="theater-frame"><VideoSlot priority={100} /></div>
+          <div className="theater-bar">
+            <button className="ctl" onClick={closeTheater} aria-label="Exit full screen"><X size={22} /></button>
+            <b>{track.title}</b>
+            <button className="ctl" onClick={() => usePlayer.getState().toggle()} aria-label={isLive(status) ? 'Pause' : 'Play'}>{status === 'playing' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button>
+            <button className="ctl" onClick={() => usePlayer.getState().skip(1)} aria-label="Next"><SkipForward size={20} fill="currentColor" /></button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 // ------------------------------------------------------------ waveform
@@ -100,7 +166,7 @@ function Waveform({ track, status, compact }: { track: Track; status: Status; co
       ctx.roundRect(x, (h - bh) / 2, bw, bh, bw / 2);
       ctx.fill();
     }
-  }, true, [track.id, compact]);
+  }, true, [track.id, compact], { fps: 24, layer: 'player' });
 
   const seekAt = (e: React.PointerEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -136,7 +202,8 @@ function PlayButton({ size = 'lg' }: { size?: 'lg' | 'sm' }) {
   const status = usePlayer((s) => s.status);
   const ic = size === 'lg' ? 30 : 20;
   return (
-    <motion.button className={`play-btn ${size}`} whileTap={{ scale: 0.88 }} onClick={(e) => { e.stopPropagation(); usePlayer.getState().toggle(); }} aria-label={isLive(status) ? 'Pause' : 'Play'}>
+    <motion.button className={`play-btn ${size} ${status === 'playing' ? 'on' : ''}`} whileTap={{ scale: 0.88 }} onClick={(e) => { e.stopPropagation(); usePlayer.getState().toggle(); }} aria-label={isLive(status) ? 'Pause' : 'Play'}>
+      {size === 'lg' && <svg className="play-orbit" viewBox="0 0 120 120" aria-hidden>{Array.from({ length: 36 }, (_, i) => { const a = (i / 36) * Math.PI * 2; return <circle key={i} cx={60 + Math.cos(a) * 56} cy={60 + Math.sin(a) * 56} r={i % 3 === 0 ? 2.4 : 1.4} style={{ animationDelay: `${i * 40}ms` }} />; })}</svg>}
       {status === 'loading' ? <Loader2 className="spin" size={ic} /> : status === 'playing' ? <Pause size={ic} fill="currentColor" /> : <Play size={ic} fill="currentColor" style={{ marginLeft: size === 'lg' ? 4 : 2 }} />}
     </motion.button>
   );
@@ -148,7 +215,7 @@ function Crowd({ id }: { id: string }) {
   return (
     <div className="crowd">
       {spot && <span className="stack">{spot.users.slice(0, 5).map((u) => <Avatar key={u.id} seed={u.id} color={u.color} size={24} />)}</span>}
-      <span>{others > 0 ? <><b className="doto">{others}</b> {others === 1 ? 'other is' : 'others are'} jamming here</> : 'You started this one. Share it.'}</span>
+      <span>{others > 0 ? <><b className="doto">{others}</b> {others === 1 ? 'other is' : 'others are'} jamming here</> : 'Only you on this one so far. Share it.'}</span>
     </div>
   );
 }
@@ -161,6 +228,11 @@ function statusLabel(t: Track, s: Status) {
 }
 
 // ------------------------------------------------------------ full player
+
+const bgPattern = (id: string) => {
+  const p = patternFor(id);
+  return p === 'grid' ? 'contour' : p === 'rays' ? 'waves' : p;
+};
 
 export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; onClose?: () => void }) {
   const track = usePlayer((s) => s.track);
@@ -187,7 +259,7 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
     <div className={`np ${variant}`} style={{ '--c': colors[0], '--c2': colors[1] } as React.CSSProperties}>
       <div className="np-bg" aria-hidden>
         {track.kind === 'song' && <img src={`https://i.ytimg.com/vi/${track.url}/hqdefault.jpg`} alt="" />}
-        <FlowArt seed={track.id} colors={colors} pattern={patternFor(track.id)} animate={on} energy={on ? 1 : 0.35} bg={null} />
+        <FlowArt seed={track.id} colors={colors} pattern={bgPattern(track.id)} animate={on} energy={on ? 1 : 0.35} bg={null} layer="player" fps={coarse ? 20 : 30} density={0.8} />
         <span />
       </div>
       <div className="np-top">
@@ -203,7 +275,9 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
         {track.kind === 'song' ? (
           <>
             <img className="np-poster" src={`https://i.ytimg.com/vi/${track.url}/hqdefault.jpg`} alt="" />
+            <button className="np-tapzone" onClick={openTheater} aria-label="Watch full screen" />
             <VideoSlot priority={variant === 'sheet' ? 40 : 5} />
+            <button className="expand" onClick={openTheater} aria-label="Full screen"><Maximize2 size={18} /></button>
           </>
         ) : (
           <Cover track={track} animate={on} />

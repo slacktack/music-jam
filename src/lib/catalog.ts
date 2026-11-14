@@ -32,7 +32,7 @@ export const VIBES: Vibe[] = [
       top({ language: 'hindi', tag: 'retro' }), top({ name: 'kishore' }), top({ countrycode: 'IN', name: 'rafi' }),
       top({ countrycode: 'IN', name: 'lata' }), top({ language: 'hindi', tag: '90s' }), top({ name: 'vividh' }), top({ tag: 'bollywood', name: 'nostalgi' }),
     ],
-    songs: 'old hindi songs kishore kumar lata mangeshkar mohammed rafi',
+    songs: 'kishore kumar hit songs||lata mangeshkar hit songs||mohammed rafi hit songs||r d burman songs||asha bhosle hit songs',
   },
   { id: 'bollywood', label: 'Bollywood', sub: 'Filmi, all day', colors: [P.magenta, P.violet], pattern: 'contour', desi: true, radio: [top({ tag: 'bollywood' })], songs: `bollywood hit songs ${Y}` },
   { id: 'bhakti', label: 'Bhakti', sub: 'Bhajan · aarti · kirtan', colors: [P.marigold, P.saffron], pattern: 'rays', desi: true, radio: [top({ tag: 'bhajan' }), top({ tag: 'devotional', countrycode: 'IN' }), top({ name: 'bhakti' })], songs: 'bhakti songs bhajan' },

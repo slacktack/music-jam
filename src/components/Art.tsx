@@ -4,11 +4,11 @@ import { colorsFor, rng } from '../lib/color';
 import { drawFlow, patternFor } from '../lib/flow';
 import { GLYPHS, type GlyphId } from '../lib/glyphs';
 import type { Track } from '../lib/types';
-import { useCanvas } from './canvas';
+import { LITE, coarse, useCanvas } from './canvas';
 
-export const FlowArt = memo(function FlowArt({ seed, colors, pattern, animate = false, energy = 1, density, className = '', bg }: { seed: string; colors: [string, string]; pattern: Pattern; animate?: boolean; energy?: number; density?: number; className?: string; bg?: string | null }) {
+export const FlowArt = memo(function FlowArt({ seed, colors, pattern, animate = false, energy = 1, density, className = '', bg, layer = 'page', fps = 24 }: { seed: string; colors: [string, string]; pattern: Pattern; animate?: boolean; energy?: number; density?: number; className?: string; bg?: string | null; layer?: 'page' | 'player'; fps?: number }) {
   const base = useMemo(() => rng(seed)() * 20, [seed]);
-  const ref = useCanvas((ctx, w, h, t) => drawFlow(ctx, w, h, { seed, colors, pattern, t: base + t, energy, density, bg }), animate, [seed, colors[0], colors[1], pattern, energy, density, bg]);
+  const ref = useCanvas((ctx, w, h, t) => drawFlow(ctx, w, h, { seed, colors, pattern, t: base + t, energy, density, bg }), animate && !(LITE && layer === 'page'), [seed, colors[0], colors[1], pattern, energy, density, bg], { fps, layer });
   return <canvas ref={ref} className={`flow ${className}`} aria-hidden />;
 });
 
@@ -72,10 +72,10 @@ export function Eq({ on }: { on: boolean }) {
 /** Big dot-matrix headline that reacts to the cursor/finger and breathes on its own. */
 export function DotText({ text, colors, energy = 0, className = '' }: { text: string; colors: [string, string]; energy?: number; className?: string }) {
   const [fonts, setFonts] = useState(false);
-  const st = useRef({ key: '', dots: [] as { x: number; y: number; on: boolean; c: string }[], step: 8, px: -1e4, py: -1e4, pk: 0, last: 0 });
+  const st = useRef({ key: '', dots: [] as { x: number; y: number; on: boolean; c: string }[], step: 8, px: -1e4, py: -1e4, pk: 0, last: 0, ripples: [] as { x: number; y: number; t0: number }[] });
   useEffect(() => {
     let alive = true;
-    document.fonts?.load('800 100px "Geist Variable"').finally(() => alive && setFonts(true));
+    document.fonts?.load('700 100px "Clash Display"').finally(() => alive && setFonts(true));
     return () => { alive = false; };
   }, []);
 
@@ -84,16 +84,16 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
     const key = `${w}x${h}|${text}|${colors}|${fonts}`;
     if (key !== s.key) {
       s.key = key;
-      s.step = Math.max(4, Math.round(h / 15));
+      s.step = Math.max(LITE ? 7 : coarse ? 6 : 4, Math.round(h / (LITE ? 11 : 15)));
       const off = document.createElement('canvas');
       off.width = Math.ceil(w);
       off.height = Math.ceil(h);
       const o = off.getContext('2d', { willReadFrequently: true })!;
       let fs = h * 1.02;
-      o.font = `800 ${fs}px "Geist Variable", system-ui, sans-serif`;
+      o.font = `700 ${fs}px "Clash Display", "Satoshi", system-ui, sans-serif`;
       const mw = o.measureText(text).width;
       if (mw > w * 0.98) fs *= (w * 0.98) / mw;
-      o.font = `800 ${fs}px "Geist Variable", system-ui, sans-serif`;
+      o.font = `700 ${fs}px "Clash Display", "Satoshi", system-ui, sans-serif`;
       o.textAlign = 'left';
       o.textBaseline = 'middle';
       o.fillStyle = '#fff';
@@ -118,9 +118,16 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
     s.pk += ((idle ? 0.55 : 1) - s.pk) * 0.08;
     const R = s.step * 7;
     const step = s.step;
+    const now = performance.now();
+    s.ripples = s.ripples.filter((r) => now - r.t0 < 1400);
     for (const d of s.dots) {
       const dist = Math.hypot(d.x - px, d.y - py);
-      const k = Math.max(0, 1 - dist / R) * s.pk;
+      let k = Math.max(0, 1 - dist / R) * s.pk;
+      for (const rp of s.ripples) {
+        const age = (now - rp.t0) / 1400;
+        const ring = Math.abs(Math.hypot(d.x - rp.x, d.y - rp.y) - age * w * 0.9);
+        k = Math.max(k, Math.max(0, 1 - ring / (step * 2.2)) * (1 - age));
+      }
       const wave = 0.5 + 0.5 * Math.sin(d.x * 0.02 + d.y * 0.012 - t * 2.4);
       let r: number;
       if (d.on) {
@@ -137,7 +144,7 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-  }, true, [text, colors[0], colors[1], energy, fonts]);
+  }, true, [text, colors[0], colors[1], energy, fonts], { fps: coarse ? 24 : 40 });
 
   useEffect(() => {
     const c = ref.current!;
@@ -147,9 +154,18 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
       st.current.py = e.clientY - r.top;
       st.current.last = performance.now();
     };
+    const down = (e: PointerEvent) => {
+      move(e);
+      st.current.ripples.push({ x: st.current.px, y: st.current.py, t0: performance.now() });
+    };
     c.addEventListener('pointermove', move);
-    c.addEventListener('pointerdown', move);
-    return () => { c.removeEventListener('pointermove', move); c.removeEventListener('pointerdown', move); };
+    c.addEventListener('pointerdown', down);
+    // a ripple on its own every few seconds
+    const id = setInterval(() => {
+      if (performance.now() - st.current.last < 3000 || document.hidden) return;
+      st.current.ripples.push({ x: c.clientWidth * (0.2 + Math.random() * 0.6), y: c.clientHeight * (0.3 + Math.random() * 0.4), t0: performance.now() });
+    }, 4200);
+    return () => { clearInterval(id); c.removeEventListener('pointermove', move); c.removeEventListener('pointerdown', down); };
   }, []);
 
   return <canvas ref={ref} className={`dottext ${className}`} role="img" aria-label={text} />;
@@ -157,3 +173,13 @@ export function DotText({ text, colors, energy = 0, className = '' }: { text: st
 
 const hexRgb = (h: string) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const mix = (a: number, b: number, u: number) => Math.round(a + (b - a) * u);
+
+/** Dot-matrix equalizer used for loading states. */
+export function DotLoader({ label = 'Loading' }: { label?: string }) {
+  return (
+    <div className="dotloader" role="status" aria-label={label}>
+      <div className="dl-grid">{Array.from({ length: 9 }, (_, c) => <span key={c} className="dl-col" style={{ animationDelay: `${c * 90}ms` }}>{Array.from({ length: 7 }, (_, r) => <i key={r} />)}</span>)}</div>
+      <span className="doto">{label}</span>
+    </div>
+  );
+}

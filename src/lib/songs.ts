@@ -19,13 +19,28 @@ export function cleanTitle(t: string) {
 
 export const thumb = (id: string, q: 'mq' | 'hq' | 'sd' = 'hq') => `https://i.ytimg.com/vi/${id}/${q}default.jpg`;
 
+/** A query can be several YouTube searches joined with "||"; results are interleaved. */
 export async function searchSongs(q: string, signal?: AbortSignal): Promise<Track[]> {
+  const parts = q.split('||').map((x) => x.trim()).filter(Boolean);
+  if (parts.length < 2) return searchOne(q, signal);
+  const lists = await Promise.all(parts.map((p) => searchOne(p, signal).catch(() => [] as Track[])));
+  const out: Track[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < Math.max(...lists.map((l) => l.length)); i++)
+    for (const l of lists) if (l[i] && !seen.has(l[i].id)) { seen.add(l[i].id); out.push(l[i]); }
+  return out;
+}
+
+async function searchOne(q: string, signal?: AbortSignal): Promise<Track[]> {
   const key = q.toLowerCase().trim();
   const hit = cache.get(key);
   if (hit) return hit;
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal });
-  if (!res.ok) throw new Error(`search ${res.status}`);
-  const { items } = (await res.json()) as { items: Item[] };
+  let items: Item[] = [];
+  for (let attempt = 0; attempt < 2 && !items.length; attempt++) {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal });
+    if (!res.ok && attempt) throw new Error(`search ${res.status}`);
+    if (res.ok) items = ((await res.json()) as { items: Item[] }).items;
+  }
   const list: Track[] = items.map((v) => ({
     id: `yt:${v.id}`,
     kind: 'song',
@@ -36,6 +51,6 @@ export async function searchSongs(q: string, signal?: AbortSignal): Promise<Trac
     duration: v.duration,
     live: v.live,
   }));
-  cache.set(key, list);
+  if (list.length) cache.set(key, list);
   return list;
 }

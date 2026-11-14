@@ -1,7 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/geist';
-import '@fontsource/doto/700.css';
-import '@fontsource/doto/900.css';
+import '@fontsource-variable/jetbrains-mono';
 import './styles.css';
 import { App } from './App';
 import { startFloor } from './lib/floor';

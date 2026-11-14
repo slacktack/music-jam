@@ -10,7 +10,7 @@ import { usePlayer } from '../lib/player';
 import { back, go, linkProps } from '../lib/router';
 import type { Track } from '../lib/types';
 import { DotGlyph, DotText, FlowArt } from './Art';
-import { RowSkeleton, StationTile, TileSkeleton, TrackRow, useListeners } from './Lists';
+import { Rail, RowSkeleton, StationTile, TileSkeleton, TrackRow, useListeners } from './Lists';
 import { ArtistCard, FestCard, VibeTile, festLabel } from './Tiles';
 import { playCollection } from './collection';
 
@@ -76,7 +76,6 @@ export function Home() {
   const spots = useFloor((s) => s.spots);
   const playing = usePlayer((s) => s.status === 'playing');
   const fests = useMemo(() => sortedFestivals(), []);
-  const now = fests.find((x) => x.s.state === 'now');
   const desi = VIBES.filter((v) => v.desi);
   const big = desi.slice(0, 3);
   return (
@@ -98,21 +97,19 @@ export function Home() {
         </div>
       </header>
 
-      {now && (
-        <motion.section className="now-fest" style={{ '--c': now.f.colors[0], '--c2': now.f.colors[1] } as React.CSSProperties} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <FlowArt seed={now.f.id} colors={now.f.colors} pattern={now.f.pattern} animate energy={1} />
-          <span className="vtile-shade" />
-          <div className="now-fest-text">
-            <span className="pill now"><i className="live-dot" />Happening now</span>
-            <h2>{now.f.label}</h2>
-            <p>{now.f.sub}</p>
-            <div className="btn-row">
-              <button className="btn primary" onClick={() => playCollection({ songs: now.f.songs, radio: now.f.radio, label: now.f.label })}><Play size={18} fill="currentColor" /> Play songs</button>
-              <a className="btn glass" {...linkProps(`/fest/${now.f.id}`)}>Open</a>
-            </div>
-          </div>
-        </motion.section>
-      )}
+      <section>
+        <SectionHead kicker="00" title="One tap" />
+        <div className="onetap">
+          {ONE_TAP.map((v, i) => (
+            <motion.button key={v.id} className="tap" style={{ '--c': v.colors[0], '--c2': v.colors[1] } as React.CSSProperties} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} whileTap={{ scale: 0.95 }} onClick={() => playCollection({ songs: v.songs, radio: v.radio, label: v.label }, 'radio')}>
+              <FlowArt seed={v.id + 'tap'} colors={v.colors} pattern={v.pattern} density={0.6} energy={0.6} />
+              <span className="tap-play"><Play size={18} fill="currentColor" /></span>
+              <b>{v.label}</b>
+              <small className="doto">RADIO · SCREEN-OFF OK</small>
+            </motion.button>
+          ))}
+        </div>
+      </section>
 
       <section>
         <SectionHead kicker="01" title="Desi first" />
@@ -121,7 +118,7 @@ export function Home() {
 
       <section>
         <SectionHead kicker="02" title="Voices" />
-        <div className="rail artists">{ARTISTS.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}</div>
+        <Rail className="artists">{ARTISTS.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}</Rail>
       </section>
 
       <section>
@@ -131,15 +128,15 @@ export function Home() {
 
       <section>
         <SectionHead kicker="04" title="Festivals & moods" />
-        <div className="rail">{fests.map(({ f, s }, i) => <FestCard key={f.id} fest={f} state={s} index={i} />)}</div>
+        <Rail>{fests.map(({ f, s }, i) => <FestCard key={f.id} fest={f} state={s} index={i} />)}</Rail>
       </section>
 
       {spots.length > 0 && (
         <section>
           <SectionHead kicker="05" title="Live on the floor" to="/floor" />
-          <div className="rail">{spots.slice(0, 12).map((s, i) => (s.track.kind === 'radio'
+          <Rail>{spots.slice(0, 12).map((s, i) => (s.track.kind === 'radio'
             ? <StationTile key={s.track.id} track={s.track} queue={spots.map((x) => x.track)} context="The floor" index={i} listeners={s.count} />
-            : <FloorSongTile key={s.track.id} track={s.track} count={s.count} at={s.at} />))}</div>
+            : <FloorSongTile key={s.track.id} track={s.track} count={s.count} at={s.at} />))}</Rail>
         </section>
       )}
 
@@ -201,7 +198,6 @@ export function Collection({ kind, id }: { kind: 'vibe' | 'fest' | 'artist'; id:
       <div className="seg" role="tablist">
         {(['songs', 'radio'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-            {tab === t && <motion.span layoutId="seg-pill" className="seg-pill" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
             <span>{t === 'songs' ? 'Songs' : 'Live radio'}</span>
           </button>
         ))}
@@ -218,13 +214,15 @@ export function Collection({ kind, id }: { kind: 'vibe' | 'fest' | 'artist'; id:
 
 // ---------------------------------------------------------------- Search
 
+const ONE_TAP = ['hindi', 'punjabi', 'retro-hindi', 'bhakti'].map((id) => vibeById(id)!);
+
 const SUGGEST = ['90s bollywood romantic', 'Kesariya', 'Tum Hi Ho', 'Chhath geet', 'Bhangra party', 'Old is gold', 'Sharda Sinha', 'Gurbani', 'Garba', 'Sufi night'];
 
 export function Search({ q }: { q: string }) {
   const [text, setText] = useState(q);
   const input = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState(q.trim());
-  const fests = useMemo(() => sortedFestivals().slice(0, 6), []);
+  const fests = useMemo(() => sortedFestivals().slice(0, 8), []);
   useEffect(() => setText(q), [q]);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -234,7 +232,7 @@ export function Search({ q }: { q: string }) {
     }, 450);
     return () => clearTimeout(t);
   }, [text]);
-  useEffect(() => { if (!q) input.current?.focus(); }, []);
+  useEffect(() => { const el = input.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, []);
   const fest = term ? findFestival(term) : undefined;
   const singer = term && !fest ? findArtist(term) : undefined;
   const vibe = term && !fest && !singer ? findVibe(term) : undefined;
@@ -253,15 +251,15 @@ export function Search({ q }: { q: string }) {
         <>
           <section>
             <SectionHead title="Festivals & moods" />
-            <div className="chips">{fests.map(({ f, s }) => <a key={f.id} className="chip" style={{ '--c': f.colors[0] } as React.CSSProperties} {...linkProps(`/fest/${f.id}`)}><i />{f.label}{s.state === 'now' && <em>now</em>}</a>)}</div>
+            <Rail>{fests.map(({ f, s }, i) => <FestCard key={f.id} fest={f} state={s} index={i} />)}</Rail>
           </section>
           <section>
             <SectionHead title="Voices" />
-            <div className="rail artists">{ARTISTS.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}</div>
+            <Rail className="artists">{ARTISTS.map((a, i) => <ArtistCard key={a.id} artist={a} index={i} />)}</Rail>
           </section>
           <section>
             <SectionHead title="Try a search" />
-            <div className="chips">{SUGGEST.map((s) => <button key={s} className="chip plain" onClick={() => setText(s)}>{s}</button>)}</div>
+            <div className="tryline">{SUGGEST.map((s, i) => <span key={s} style={{ display: 'contents' }}>{i > 0 && <span aria-hidden>●</span>}<button onClick={() => setText(s)}>{s}</button></span>)}</div>
           </section>
           <section>
             <SectionHead title="Languages & genres" />
@@ -279,7 +277,7 @@ export function Search({ q }: { q: string }) {
           )}
           <section>
             <SectionHead title="Songs" />
-            <SongList q={fest ? `${term} ${fest.songs}` : term} context={`Search: ${term}`} limit={20} />
+            <SongList q={fest ? `${term}||${fest.songs}` : term} context={`Search: ${term}`} limit={20} />
           </section>
           <section>
             <SectionHead title="Live stations" />

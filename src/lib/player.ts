@@ -190,14 +190,22 @@ yt.on({
   state(code) {
     const s = usePlayer.getState();
     if (s.track?.kind !== 'song') return;
+    // Ignore events that belong to a previous video (they can arrive late on slow phones).
+    const vid = yt.videoId();
+    if (vid && vid !== s.track.url) return;
     if (code === 1) { songErrors = 0; clearTimeout(stallTimer); usePlayer.setState({ status: 'playing', duration: yt.duration() || s.duration }); }
     else if (code === 3) usePlayer.setState({ status: 'loading' });
     else if (code === 2) { if (s.status !== 'loading') usePlayer.setState({ status: 'paused' }); }
-    else if (code === 0) s.skip(1);
+    else if (code === 0) {
+      const d = yt.duration() || s.duration;
+      if (d > 0 && yt.time() >= d - 3) s.skip(1); // genuinely finished
+    }
   },
   error() {
     const s = usePlayer.getState();
     if (s.track?.kind !== 'song') return;
+    const vid = yt.videoId();
+    if (vid && vid !== s.track.url) return;
     songErrors++;
     if (songErrors < 4 && s.queue.length > 1) {
       toast(`${s.track.title} can't be played outside YouTube. Skipping.`, 'info');
@@ -219,24 +227,30 @@ setInterval(() => {
   }
 }, 500);
 
-// YouTube embeds pause when the screen locks; resume when the user comes back.
+// YouTube embeds pause when the screen locks; resume the moment the phone is back on.
 let wasPlayingSong = false;
 let warned = false;
-document.addEventListener('visibilitychange', () => {
+function resumeIfNeeded() {
   const s = usePlayer.getState();
-  if (document.hidden) {
-    wasPlayingSong = s.track?.kind === 'song' && isLive(s.status);
-    return;
-  }
-  if (wasPlayingSong && s.track?.kind === 'song' && s.status !== 'playing') {
+  if (!wasPlayingSong || s.track?.kind !== 'song') return;
+  wasPlayingSong = false;
+  if (s.status !== 'playing') {
     yt.play();
+    // some phones need a second nudge once the page has fully woken up
+    setTimeout(() => { if (usePlayer.getState().status !== 'playing') yt.play(); }, 700);
     if (!warned) {
       warned = true;
-      toast('YouTube songs pause when the screen locks. Radio keeps playing with the screen off.', 'info');
+      toast('Back on. YouTube songs pause while the screen is locked; radio keeps going.', 'info');
     }
   }
-  wasPlayingSong = false;
+}
+document.addEventListener('visibilitychange', () => {
+  const s = usePlayer.getState();
+  if (document.hidden) wasPlayingSong = s.track?.kind === 'song' && isLive(s.status);
+  else resumeIfNeeded();
 });
+addEventListener('pageshow', resumeIfNeeded);
+addEventListener('focus', resumeIfNeeded);
 
 function setMediaSession(t: Track) {
   if (!('mediaSession' in navigator)) return;

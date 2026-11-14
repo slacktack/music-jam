@@ -134,6 +134,7 @@ let lastChat = 0;
 let lastReact = 0;
 let reactionKey = 0;
 let lastPresenceTs = 0;
+let lastOk = 0; // last time any relay answered us
 
 function sign(kind: number, content: string): Event {
   const now = Math.floor(Date.now() / 1000);
@@ -148,7 +149,9 @@ const pool = new SimplePool({ enableReconnect: true });
 
 async function publish(ev: Event): Promise<boolean> {
   const results = await Promise.allSettled(pool.publish(RELAYS, ev));
-  return results.some((r) => r.status === 'fulfilled');
+  const ok = results.some((r) => r.status === 'fulfilled');
+  if (ok) lastOk = Date.now();
+  return ok;
 }
 
 function addReaction(glyph: GlyphId, c: string) {
@@ -173,6 +176,7 @@ function addChat(ev: Event, countUnread: boolean) {
 }
 
 function onEvent(ev: Event) {
+  lastOk = Date.now();
   if (!ev.tags.some((t) => t[0] === 't' && t[1] === ROOM)) return;
   const now = Math.floor(Date.now() / 1000);
   if (ev.kind === K_CHAT) return addChat(ev, ev.created_at >= bootAt);
@@ -234,7 +238,7 @@ export function startFloor() {
     if (changed) recompute();
     const up = [...pool.listConnectionStatus().values()].filter(Boolean).length;
     const s = useFloor.getState();
-    const status = up > 0 ? 'live' : Date.now() / 1000 - since > 12 ? 'offline' : 'connecting';
+    const status = up > 0 || Date.now() - lastOk < 60_000 ? 'live' : Date.now() / 1000 - since > 12 ? 'offline' : 'connecting';
     if (s.status !== status || s.relaysUp !== up) useFloor.setState({ status, relaysUp: up });
   }, 2000);
 
