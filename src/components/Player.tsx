@@ -63,6 +63,8 @@ export function VideoHost() {
       el.style.height = `${r.height}px`;
       el.style.transform = `translate(${r.left}px, ${r.top}px)`;
       el.style.zIndex = String(bestP);
+      // In full screen, YouTube's own controls are tappable (its full-screen + picture-in-picture).
+      el.style.pointerEvents = bestP >= 95 ? 'auto' : 'none';
       el.style.borderRadius = getComputedStyle(best).borderRadius;
     };
     tick();
@@ -112,7 +114,8 @@ export function Theater() {
       {open && track?.kind === 'song' && (
         <motion.div key="theater" className="theater" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <div className="theater-frame"><VideoSlot priority={95} /></div>
-          <p className="theater-hint doto">ROTATE YOUR PHONE FOR FULL SCREEN</p>
+          <p className="theater-hint doto">ROTATE FOR FULL SCREEN</p>
+          <p className="theater-tip">Leaving the app? Tap the video, then YouTube's full-screen button, then picture-in-picture. The song keeps playing in a small window while you use other apps.</p>
         </motion.div>
       )}
       {open && track?.kind === 'song' && (

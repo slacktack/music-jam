@@ -240,7 +240,7 @@ function resumeIfNeeded() {
     setTimeout(() => { if (usePlayer.getState().status !== 'playing') yt.play(); }, 700);
     if (!warned) {
       warned = true;
-      toast('Back on. YouTube songs pause while the screen is locked; radio keeps going.', 'info');
+      toast('YouTube songs pause in the background. Radio keeps going, or use picture-in-picture from full screen.', 'info');
     }
   }
 }

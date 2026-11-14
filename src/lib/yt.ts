@@ -39,7 +39,7 @@ export function ensure(): Promise<any> {
           width: '100%',
           height: '100%',
           host: 'https://www.youtube-nocookie.com',
-          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, playsinline: 1, rel: 0, iv_load_policy: 3, origin: location.origin },
+          playerVars: { autoplay: 1, controls: 1, disablekb: 1, fs: 1, modestbranding: 1, playsinline: 1, rel: 0, iv_load_policy: 3, origin: location.origin },
           events: {
             onReady: () => { isReady = true; res(player); },
             onStateChange: (e: any) => handlers.state(e.data),

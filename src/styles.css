@@ -525,7 +525,8 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 .theater { position: fixed; inset: 0; z-index: 94; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
 .theater-frame { position: relative; width: min(100vw, 177.78dvh); aspect-ratio: 16 / 9; max-height: 100dvh; }
 .theater-hint { font-size: 11px; letter-spacing: 0.16em; color: rgba(255, 255, 255, 0.45); }
-@media (orientation: landscape) { .theater-hint { display: none; } .theater-frame { height: 100dvh; width: auto; max-width: 100vw; } }
+.theater-tip { max-width: 330px; padding: 0 20px; text-align: center; font-size: 13px; line-height: 1.45; color: rgba(255, 255, 255, 0.6); }
+@media (orientation: landscape) { .theater-hint, .theater-tip { display: none; } .theater-frame { height: 100dvh; width: auto; max-width: 100vw; } }
 .theater .vslot { border-radius: 0; }
 .theater-bar { position: fixed; z-index: 96; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 12px; padding: calc(10px + var(--safe-t)) 16px 10px; background: linear-gradient(rgba(0, 0, 0, 0.7), transparent); }
 .theater-bar b { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
