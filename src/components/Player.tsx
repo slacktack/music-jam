@@ -262,7 +262,7 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
         <FlowArt seed={track.id} colors={colors} pattern={bgPattern(track.id)} animate={on} energy={on ? 1 : 0.35} bg={null} layer="player" fps={coarse ? 20 : 30} density={0.8} />
         <span />
       </div>
-      <div className="np-top" onPointerDown={onDragStart}>
+      <div className="np-top" onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('button')) onDragStart?.(e); }}>
         {onClose ? <button className="icon-btn glass" onClick={onClose} aria-label="Close player"><ChevronDown size={22} /></button> : <span className="np-spacer" />}
         <div className="np-from">
           <span className={`np-status ${status}`}><i className={`live-dot ${on ? '' : 'off'}`} /><DotWord value={statusLabel(track, status)} height={18} /></span>
