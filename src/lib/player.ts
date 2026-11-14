@@ -1,140 +1,265 @@
 import { create } from 'zustand';
-import type { Station } from './types';
+import type { Track } from './types';
 import { reportClick } from './radio';
 import { toast } from './toast';
+import { artworkFor } from './artwork';
+import * as yt from './yt';
 
 export type Status = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
 interface PlayerState {
-  station: Station | null;
-  queue: Station[];
+  track: Track | null;
+  queue: Track[];
+  context: string;
   status: Status;
   volume: number;
   muted: boolean;
-  play: (station: Station, queue?: Station[]) => void;
+  position: number;
+  duration: number;
+  at: number; // songs: epoch ms of position 0 (shared on the floor for synced joins)
+  play: (track: Track, queue?: Track[], context?: string, at?: number) => void;
   toggle: () => void;
   skip: (dir: 1 | -1) => void;
+  seek: (sec: number) => void;
   setVolume: (v: number) => void;
   toggleMute: () => void;
 }
 
-const audio = typeof Audio !== 'undefined' ? new Audio() : (null as unknown as HTMLAudioElement);
+export const isLive = (s: Status) => s === 'playing' || s === 'loading';
+
+const audio = new Audio();
+audio.preload = 'none';
+audio.setAttribute('playsinline', '');
 let hls: { destroy(): void } | null = null;
-let token = 0; // guards against races between quick station switches
+let token = 0;
+let songErrors = 0;
+let stallTimer = 0;
 
-const savedVolume = Number(localStorage.getItem('jam.volume') ?? '0.8');
+function readVolume() {
+  try {
+    const v = Number(localStorage.getItem('jam.volume') ?? '0.9');
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.9;
+  } catch {
+    return 0.9;
+  }
+}
 
-async function load(station: Station) {
-  const my = ++token;
+function stopRadio() {
   hls?.destroy();
   hls = null;
   audio.pause();
-  const isHls = station.hls || /\.m3u8(\?|$)/i.test(station.url);
+  if (audio.getAttribute('src')) {
+    audio.removeAttribute('src');
+    audio.load();
+  }
+}
+
+async function loadRadio(t: Track) {
+  const my = ++token;
+  yt.stop();
+  stopRadio();
+  const isHls = t.hls || /\.m3u8(\?|$)/i.test(t.url);
   try {
     if (isHls && !audio.canPlayType('application/vnd.apple.mpegurl')) {
       const { default: Hls } = await import('hls.js');
       if (my !== token) return;
       if (!Hls.isSupported()) throw new Error('HLS unsupported');
-      const h = new Hls({ lowLatencyMode: true });
+      const h = new Hls();
       hls = h;
-      h.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal && my === token) fail(station);
-      });
-      h.loadSource(station.url);
+      h.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal && my === token) fail(t); });
+      h.loadSource(t.url);
       h.attachMedia(audio);
     } else {
-      audio.src = station.url;
+      audio.src = t.url;
     }
     await audio.play();
   } catch (e: any) {
-    // AbortError just means another station was picked mid-load.
-    if (my === token && e?.name !== 'AbortError') fail(station);
+    if (my === token && e?.name !== 'AbortError') fail(t);
   }
 }
 
-function fail(station: Station) {
-  if (usePlayer.getState().status === 'error') return; // play() rejection and the error event both land here
-  usePlayer.setState({ status: 'error' });
-  toast(`${station.name} is off air right now. Try another one.`);
+function loadSong(t: Track, start: number) {
+  const my = ++token;
+  stopRadio();
+  const { volume, muted } = usePlayer.getState();
+  usePlayer.setState({ position: start, duration: t.duration || 0, at: Date.now() - start * 1000 });
+  yt.load(t.url, start, volume, muted).catch(() => { if (my === token) fail(t); });
+  // iOS can refuse to start an embed without a tap inside it; hand control back.
+  clearTimeout(stallTimer);
+  stallTimer = window.setTimeout(() => {
+    const s = usePlayer.getState();
+    if (my === token && s.status === 'loading') {
+      usePlayer.setState({ status: 'paused' });
+      toast('Tap play to start the song.', 'info');
+    }
+  }, 9000);
 }
 
-function stop() {
-  token++;
-  hls?.destroy();
-  hls = null;
-  audio.pause();
-  audio.removeAttribute('src');
-  audio.load();
+function fail(t: Track) {
+  if (usePlayer.getState().status === 'error') return;
+  usePlayer.setState({ status: 'error' });
+  toast(t.kind === 'radio' ? `${t.title} is off air right now. Try another station.` : `Couldn't play ${t.title}.`);
 }
 
 export const usePlayer = create<PlayerState>((set, get) => ({
-  station: null,
+  track: null,
   queue: [],
+  context: '',
   status: 'idle',
-  volume: Number.isFinite(savedVolume) ? Math.min(1, Math.max(0, savedVolume)) : 0.8,
+  volume: readVolume(),
   muted: false,
-  play(station, queue) {
-    set({ station, status: 'loading', ...(queue ? { queue } : {}) });
-    reportClick(station.id);
-    setMediaSession(station);
-    load(station);
+  position: 0,
+  duration: 0,
+  at: 0,
+  play(track, queue, context, at) {
+    set({ track, status: 'loading', position: 0, ...(queue ? { queue } : {}), ...(context !== undefined ? { context } : {}) });
+    setMediaSession(track);
+    if (track.kind === 'radio') {
+      reportClick(track.id);
+      set({ at: 0, duration: 0 });
+      loadRadio(track);
+    } else {
+      const max = (track.duration || 0) - 8;
+      const start = at && max > 0 ? Math.min(max, Math.max(0, (Date.now() - at) / 1000)) : 0;
+      loadSong(track, start);
+    }
   },
   toggle() {
-    const { station, status } = get();
-    if (!station) return;
-    if (status === 'playing' || status === 'loading') {
-      stop(); // live radio: stop the stream instead of buffering stale audio
+    const { track, status } = get();
+    if (!track) return;
+    if (track.kind === 'song') {
+      if (isLive(status)) {
+        yt.pause();
+        set({ status: 'paused' });
+      } else if (status === 'error' || status === 'idle') {
+        get().play(track);
+      } else {
+        yt.play();
+        set({ status: 'loading' });
+      }
+      return;
+    }
+    if (isLive(status)) {
+      token++;
+      stopRadio(); // live radio: stop instead of buffering stale audio
       set({ status: 'paused' });
     } else {
       set({ status: 'loading' });
-      load(station);
+      loadRadio(track);
     }
   },
   skip(dir) {
-    const { station, queue } = get();
+    const { track, queue } = get();
     if (!queue.length) return;
-    const i = station ? queue.findIndex((s) => s.id === station.id) : -1;
+    const i = track ? queue.findIndex((s) => s.id === track.id) : -1;
     get().play(queue[(i + dir + queue.length) % queue.length]);
+  },
+  seek(sec) {
+    const { track } = get();
+    if (track?.kind !== 'song') return;
+    yt.seek(sec);
+    set({ position: sec, at: Date.now() - sec * 1000 });
   },
   setVolume(v) {
     const volume = Math.min(1, Math.max(0, v));
     audio.volume = volume;
     audio.muted = false;
-    localStorage.setItem('jam.volume', String(volume));
+    yt.setVolume(volume);
+    yt.setMuted(false);
+    try { localStorage.setItem('jam.volume', String(volume)); } catch {}
     set({ volume, muted: false });
   },
   toggleMute() {
-    audio.muted = !audio.muted;
-    set({ muted: audio.muted });
+    const muted = !get().muted;
+    audio.muted = muted;
+    yt.setMuted(muted);
+    set({ muted });
   },
 }));
 
-if (audio) {
-  audio.preload = 'none';
-  audio.volume = usePlayer.getState().volume;
-  audio.addEventListener('playing', () => usePlayer.setState({ status: 'playing' }));
-  audio.addEventListener('waiting', () => {
-    if (usePlayer.getState().status === 'playing') usePlayer.setState({ status: 'loading' });
-  });
-  audio.addEventListener('error', () => {
-    const { station, status } = usePlayer.getState();
-    if (station && audio.getAttribute('src') && status !== 'paused') fail(station);
-  });
-}
+audio.volume = usePlayer.getState().volume;
+audio.addEventListener('playing', () => { if (usePlayer.getState().track?.kind === 'radio') usePlayer.setState({ status: 'playing' }); });
+audio.addEventListener('waiting', () => { const s = usePlayer.getState(); if (s.track?.kind === 'radio' && s.status === 'playing') usePlayer.setState({ status: 'loading' }); });
+audio.addEventListener('pause', () => { const s = usePlayer.getState(); if (s.track?.kind === 'radio' && s.status === 'playing') usePlayer.setState({ status: 'paused' }); });
+audio.addEventListener('error', () => {
+  const s = usePlayer.getState();
+  if (s.track?.kind === 'radio' && audio.getAttribute('src') && s.status !== 'paused') fail(s.track);
+});
 
-function setMediaSession(station: Station) {
+yt.on({
+  state(code) {
+    const s = usePlayer.getState();
+    if (s.track?.kind !== 'song') return;
+    if (code === 1) { songErrors = 0; clearTimeout(stallTimer); usePlayer.setState({ status: 'playing', duration: yt.duration() || s.duration }); }
+    else if (code === 3) usePlayer.setState({ status: 'loading' });
+    else if (code === 2) { if (s.status !== 'loading') usePlayer.setState({ status: 'paused' }); }
+    else if (code === 0) s.skip(1);
+  },
+  error() {
+    const s = usePlayer.getState();
+    if (s.track?.kind !== 'song') return;
+    songErrors++;
+    if (songErrors < 4 && s.queue.length > 1) {
+      toast(`${s.track.title} can't be played outside YouTube. Skipping.`, 'info');
+      s.skip(1);
+    } else {
+      fail(s.track);
+    }
+  },
+});
+
+// Progress for songs.
+setInterval(() => {
+  const s = usePlayer.getState();
+  if (s.track?.kind !== 'song' || s.status !== 'playing') return;
+  const position = yt.time();
+  usePlayer.setState({ position, duration: yt.duration() || s.duration });
+  if ('mediaSession' in navigator && s.duration > 0) {
+    try { navigator.mediaSession.setPositionState({ duration: s.duration, position: Math.min(position, s.duration), playbackRate: 1 }); } catch {}
+  }
+}, 500);
+
+// YouTube embeds pause when the screen locks; resume when the user comes back.
+let wasPlayingSong = false;
+let warned = false;
+document.addEventListener('visibilitychange', () => {
+  const s = usePlayer.getState();
+  if (document.hidden) {
+    wasPlayingSong = s.track?.kind === 'song' && isLive(s.status);
+    return;
+  }
+  if (wasPlayingSong && s.track?.kind === 'song' && s.status !== 'playing') {
+    yt.play();
+    if (!warned) {
+      warned = true;
+      toast('YouTube songs pause when the screen locks. Radio keeps playing with the screen off.', 'info');
+    }
+  }
+  wasPlayingSong = false;
+});
+
+function setMediaSession(t: Track) {
   if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: station.name,
-    artist: station.tags || station.country || 'Live radio',
-    album: 'JAM',
-    artwork: station.favicon ? [{ src: station.favicon }] : [],
-  });
-  const p = usePlayer.getState();
-  navigator.mediaSession.setActionHandler('play', () => p.toggle());
-  navigator.mediaSession.setActionHandler('pause', () => p.toggle());
-  navigator.mediaSession.setActionHandler('nexttrack', () => p.skip(1));
-  navigator.mediaSession.setActionHandler('previoustrack', () => p.skip(-1));
+  const ms = navigator.mediaSession;
+  try {
+    ms.metadata = new MediaMetadata({ title: t.title, artist: t.kind === 'radio' ? `Live radio · ${t.subtitle}` : t.subtitle, album: 'JAM', artwork: artworkFor(t) });
+  } catch {}
+  const p = () => usePlayer.getState();
+  const h = (a: MediaSessionAction, fn: MediaSessionActionHandler | null) => { try { ms.setActionHandler(a, fn); } catch {} };
+  h('play', () => { if (!isLive(p().status)) p().toggle(); });
+  h('pause', () => { if (isLive(p().status)) p().toggle(); });
+  h('stop', () => { if (isLive(p().status)) p().toggle(); });
+  h('nexttrack', () => p().skip(1));
+  h('previoustrack', () => p().skip(-1));
+  h('seekto', t.kind === 'song' ? (d) => d.seekTime != null && p().seek(d.seekTime) : null);
 }
 
-export const isLive = (s: Status) => s === 'playing' || s === 'loading';
+usePlayer.subscribe((s, prev) => {
+  if (s.status !== prev.status && 'mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = s.status === 'playing' ? 'playing' : isLive(s.status) ? 'playing' : s.track ? 'paused' : 'none';
+  }
+});
+
+export function warmUpYouTube() {
+  yt.ensure().catch(() => {});
+}

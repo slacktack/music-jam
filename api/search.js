@@ -1,0 +1,3 @@
+// Vercel serverless function: GET /api/search?q=...
+import { handleSearch } from '../server/yt.js';
+export default handleSearch;
