@@ -188,13 +188,15 @@ export function DotLoader({ label = 'Loading' }: { label?: string }) {
   );
 }
 
-/** Crisp vector dot-matrix number (any size, any screen). */
+/** Crisp vector dot-matrix text (any size, any screen). */
 export function DotNumber({ value, height = 26, className = '' }: { value: string; height?: number; className?: string }) {
-  const chars = [...value].map((c) => FONT[c] || FONT[' ']);
+  const chars = [...value.toUpperCase()].map((c) => FONT[c] || FONT[' ']);
   const w = chars.length * 6 - 1;
   return (
     <svg className={`dotnum ${className}`} height={height} viewBox={`0 0 ${w} 7`} aria-label={value} role="img">
-      {chars.flatMap((rows, i) => rows.flatMap((row, y) => [...row].map((c, x) => (c === 'X' ? <circle key={`${i}-${x}-${y}`} cx={i * 6 + x + 0.5} cy={y + 0.5} r={0.4} /> : null))))}
+      {chars.flatMap((rows, i) => rows.flatMap((row, y) => [...row].map((c, x) => (c === 'X' ? <circle key={`${i}-${x}-${y}`} cx={i * 6 + x + 0.5} cy={y + 0.5} r={0.44} /> : null))))}
     </svg>
   );
 }
+
+export const DotWord = DotNumber;

@@ -10,7 +10,7 @@ import { isLive, usePlayer, type Status } from '../lib/player';
 import { useFloor } from '../lib/floor';
 import { shareTrack } from '../lib/share';
 import type { Track } from '../lib/types';
-import { Avatar, Cover, DotGlyph, Eq, FlowArt } from './Art';
+import { Avatar, Cover, DotGlyph, DotWord, Eq, FlowArt } from './Art';
 import { LikeButton, fmt } from './Lists';
 import { coarse, useCanvas } from './canvas';
 
@@ -190,7 +190,7 @@ function Waveform({ track, status, compact }: { track: Track; status: Status; co
         <canvas ref={ref} aria-hidden />
       </div>
       <div className="wave-times doto">
-        {song ? <><span>{fmt(drag !== null ? drag * duration : position)}</span><span>{fmt(duration)}</span></> : <><span className="live-tag"><i className="live-dot" />LIVE</span><span>{track.kind === 'radio' ? 'RADIO' : 'STREAM'}</span></>}
+        {song ? <><span>{fmt(drag !== null ? drag * duration : position)}</span><span>{fmt(duration)}</span></> : <><span className="live-tag"><i className="live-dot" /><DotWord value="LIVE" height={14} /></span><DotWord value={track.kind === "radio" ? "RADIO" : "STREAM"} height={14} className="dim" /></>}
       </div>
     </div>
   );
@@ -234,7 +234,7 @@ const bgPattern = (id: string) => {
   return p === 'grid' ? 'contour' : p === 'rays' ? 'waves' : p;
 };
 
-export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; onClose?: () => void }) {
+export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet' | 'panel'; onClose?: () => void; onDragStart?: (e: React.PointerEvent) => void }) {
   const track = usePlayer((s) => s.track);
   const status = usePlayer((s) => s.status);
   const context = usePlayer((s) => s.context);
@@ -262,10 +262,10 @@ export function NowPlaying({ variant, onClose }: { variant: 'sheet' | 'panel'; o
         <FlowArt seed={track.id} colors={colors} pattern={bgPattern(track.id)} animate={on} energy={on ? 1 : 0.35} bg={null} layer="player" fps={coarse ? 20 : 30} density={0.8} />
         <span />
       </div>
-      <div className="np-top">
+      <div className="np-top" onPointerDown={onDragStart}>
         {onClose ? <button className="icon-btn glass" onClick={onClose} aria-label="Close player"><ChevronDown size={22} /></button> : <span className="np-spacer" />}
         <div className="np-from">
-          <span className={`np-status doto ${status}`}><i className={`live-dot ${on ? '' : 'off'}`} />{statusLabel(track, status)}</span>
+          <span className={`np-status ${status}`}><i className={`live-dot ${on ? '' : 'off'}`} /><DotWord value={statusLabel(track, status)} height={18} /></span>
           {context && <small>{context}</small>}
         </div>
         <button className="icon-btn glass" onClick={() => shareTrack(track)} aria-label="Share"><Share2 size={19} /></button>

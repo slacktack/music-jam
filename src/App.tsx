@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useDragControls } from 'motion/react';
 import { Heart, Home as HomeIcon, MessageCircle, Moon, Palette, Radio as RadioIcon, Search as SearchIcon, Sun, Users } from 'lucide-react';
 import { ACCENTS, useTheme } from './lib/theme';
 import { useRef } from 'react';
@@ -187,6 +187,7 @@ export function App() {
   const desktop = useDesktop();
   const route = useRoute();
   const [sheet, setSheet] = useState(false);
+  const dragControls = useDragControls();
   const track = usePlayer((s) => s.track);
   const playing = usePlayer((s) => s.status === 'playing');
   const unread = useFloor((s) => s.unread);
@@ -299,12 +300,14 @@ export function App() {
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', stiffness: 280, damping: 32 }}
                 drag="y"
+                dragListener={false}
+                dragControls={dragControls}
                 dragConstraints={{ top: 0, bottom: 0 }}
                 dragElastic={{ top: 0, bottom: 0.7 }}
                 onDragEnd={(_e, info) => (info.offset.y > 110 || info.velocity.y > 600) && closeSheet()}
               >
-                <span className="grabber" />
-                <NowPlaying variant="sheet" onClose={closeSheet} />
+                <div className="sheet-handle" onPointerDown={(e) => dragControls.start(e)} aria-hidden><span className="grabber" /></div>
+                <NowPlaying variant="sheet" onClose={closeSheet} onDragStart={(e) => dragControls.start(e)} />
               </motion.div>
             )}
           </AnimatePresence>
