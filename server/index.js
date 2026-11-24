@@ -18,7 +18,7 @@ const MIME = {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
-  if (url.pathname === '/api/search') return handleSearch(req, res);
+  if (url.pathname === '/api/search' || url.pathname === '/api/videos' || url.pathname === '/api/suggest') return handleSearch(req, res);
   let file = path.normalize(path.join(DIST, decodeURIComponent(url.pathname)));
   if (!file.startsWith(DIST)) return res.writeHead(403).end();
   fs.stat(file, (err, st) => {

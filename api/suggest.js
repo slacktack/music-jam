@@ -1,0 +1,3 @@
+// Vercel serverless function: GET /api/suggest?q=...
+import { apiHandler } from '../server/yt.js';
+export default apiHandler('/api/suggest');

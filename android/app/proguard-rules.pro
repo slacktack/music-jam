@@ -1,0 +1,14 @@
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.** { *; }
+-keep class fr.acinq.secp256k1.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn org.mozilla.classfile.**
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
+-dontwarn org.jsoup.**
+-dontwarn com.google.re2j.**
+-dontwarn org.slf4j.**
+-dontwarn javax.annotation.**
+-dontwarn edu.umd.cs.findbugs.annotations.**

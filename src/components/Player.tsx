@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronDown, Loader2, Maximize2, Pause, Play, Share2, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
+import { ChevronDown, Loader2, Maximize2, Pause, Play, Share2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 import { create } from 'zustand';
 import { AnimatePresence } from 'motion/react';
 import { colorsFor, rng } from '../lib/color';
 import { patternFor } from '../lib/flow';
 import { REACTIONS } from '../lib/glyphs';
-import { isLive, usePlayer, type Status } from '../lib/player';
+import { isLive, upNext, usePlayer, type Status } from '../lib/player';
 import { useFloor } from '../lib/floor';
 import { shareTrack } from '../lib/share';
 import type { Track } from '../lib/types';
@@ -229,6 +229,15 @@ function statusLabel(t: Track, s: Status) {
 
 // ------------------------------------------------------------ full player
 
+/** The track `skip(1)` will land on, in the current order. */
+function useUpNext() {
+  const track = usePlayer((s) => s.track?.id);
+  const queue = usePlayer((s) => s.queue);
+  const seq = usePlayer((s) => s.seq);
+  const order = usePlayer((s) => s.order);
+  return useMemo(() => upNext(), [track, queue, seq, order]);
+}
+
 const bgPattern = (id: string) => {
   const p = patternFor(id);
   return p === 'grid' ? 'contour' : p === 'rays' ? 'waves' : p;
@@ -241,6 +250,8 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
   const volume = usePlayer((s) => s.volume);
   const muted = usePlayer((s) => s.muted);
   const hasQueue = usePlayer((s) => s.queue.length > 1);
+  const order = usePlayer((s) => s.order);
+  const next = useUpNext();
 
   if (!track) {
     return (
@@ -299,6 +310,20 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
         <button className="ctl" onClick={() => p.skip(-1)} disabled={!hasQueue} aria-label="Previous"><SkipBack size={24} fill="currentColor" /></button>
         <PlayButton />
         <button className="ctl" onClick={() => p.skip(1)} disabled={!hasQueue} aria-label="Next"><SkipForward size={24} fill="currentColor" /></button>
+      </div>
+
+      <div className="np-order">
+        <button className={`order-toggle ${order === 'shuffle' ? 'on' : ''}`} onClick={() => usePlayer.getState().setOrder(order === 'shuffle' ? 'linear' : 'shuffle')} aria-pressed={order === 'shuffle'} disabled={!hasQueue} title={hasQueue ? 'Change the play order' : 'Play a list to shuffle it'}>
+          <Shuffle size={16} />
+          <span className="doto">{order === 'shuffle' ? 'Shuffled' : 'In order'}</span>
+        </button>
+        {hasQueue && next && (
+          <button className="upnext" onClick={() => usePlayer.getState().play(next)}>
+            <span className="doto">Up next</span>
+            <span className="upnext-text"><b>{next.title}</b><small>{next.subtitle || (next.kind === 'radio' ? 'Live radio' : '')}</small></span>
+            <SkipForward size={16} />
+          </button>
+        )}
       </div>
 
       <div className="np-foot">

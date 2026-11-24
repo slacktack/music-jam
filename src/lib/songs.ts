@@ -22,11 +22,16 @@ export function cleanTitle(t: string) {
 
 export const thumb = (id: string, q: 'mq' | 'hq' | 'sd' = 'hq') => `https://i.ytimg.com/vi/${id}/${q}default.jpg`;
 
-/** A query can be several YouTube searches joined with "||"; results are interleaved. */
-export async function searchSongs(q: string, signal?: AbortSignal): Promise<Track[]> {
-  const parts = q.split('||').map((x) => x.trim()).filter(Boolean);
-  if (parts.length < 2) return searchOne(q, signal);
-  const lists = await Promise.all(parts.map((p) => searchOne(p, signal).catch(() => [] as Track[])));
+/**
+ * A query can be several YouTube searches joined with "||"; results are interleaved.
+ * `parts` caps how many of them actually run (evenly spaced, so variety survives) —
+ * one-tap play uses 2 to start fast, while a section page runs all of them for a long list.
+ */
+export async function searchSongs(q: string, signal?: AbortSignal, parts = Infinity): Promise<Track[]> {
+  const all = q.split('||').map((x) => x.trim()).filter(Boolean);
+  if (all.length < 2) return searchOne(all[0] ?? q, signal);
+  const chosen = all.length <= parts ? all : Array.from({ length: parts }, (_, i) => all[Math.round((i * (all.length - 1)) / (parts - 1))]);
+  const lists = await Promise.all(chosen.map((p) => searchOne(p, signal).catch(() => [] as Track[])));
   const out: Track[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < Math.max(...lists.map((l) => l.length)); i++)

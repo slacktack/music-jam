@@ -6,10 +6,14 @@ import { artworkFor } from './artwork';
 import * as yt from './yt';
 
 export type Status = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+export type Order = 'linear' | 'shuffle';
 
 interface PlayerState {
   track: Track | null;
   queue: Track[];
+  /** Indices into queue, in play order. Linear is 0..n; shuffle puts the current track first. */
+  seq: number[];
+  order: Order;
   context: string;
   status: Status;
   volume: number;
@@ -20,12 +24,30 @@ interface PlayerState {
   play: (track: Track, queue?: Track[], context?: string, at?: number) => void;
   toggle: () => void;
   skip: (dir: 1 | -1) => void;
+  setOrder: (o: Order) => void;
   seek: (sec: number) => void;
   setVolume: (v: number) => void;
   toggleMute: () => void;
 }
 
 export const isLive = (s: Status) => s === 'playing' || s === 'loading';
+
+const identity = (n: number) => Array.from({ length: n }, (_, i) => i);
+const idsOf = (q: Track[]) => q.map((t) => t.id).join('|');
+const shuffled = (first: number, n: number) => {
+  const rest = identity(n).filter((i) => i !== first);
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return first >= 0 && first < n ? [first, ...rest] : rest;
+};
+/** A usable sequence is an exact permutation of the queue's indices. */
+const validSeq = (seq: number[], n: number) => seq.length === n && seq.every((i, k) => i >= 0 && i < n && seq.indexOf(i) === k);
+
+function readOrder(): Order {
+  try { return localStorage.getItem('jam.order') === 'shuffle' ? 'shuffle' : 'linear'; } catch { return 'linear'; }
+}
 
 const audio = new Audio();
 audio.preload = 'none';
@@ -34,6 +56,8 @@ let hls: { destroy(): void } | null = null;
 let token = 0;
 let songErrors = 0;
 let stallTimer = 0;
+let loadedAt = 0; // guards against the ENDED event YouTube fires for the video we just replaced
+let autoSkips = 0;
 
 function readVolume() {
   try {
@@ -80,6 +104,7 @@ async function loadRadio(t: Track) {
 
 function loadSong(t: Track, start: number) {
   const my = ++token;
+  loadedAt = Date.now();
   stopRadio();
   const { volume, muted } = usePlayer.getState();
   usePlayer.setState({ position: start, duration: t.duration || 0, at: Date.now() - start * 1000 });
@@ -98,12 +123,31 @@ function loadSong(t: Track, start: number) {
 function fail(t: Track) {
   if (usePlayer.getState().status === 'error') return;
   usePlayer.setState({ status: 'error' });
+  const { queue } = usePlayer.getState();
+  // A station that's off air mid-list is common; walk the rest of the list a few times.
+  if (t.kind === 'radio' && queue.length > 1 && autoSkips < 3) {
+    autoSkips++;
+    toast(`${t.title} is off air. Moving to the next station.`, 'info');
+    window.setTimeout(() => { if (usePlayer.getState().track?.id === t.id) usePlayer.getState().skip(1); }, 1200);
+    return;
+  }
   toast(t.kind === 'radio' ? `${t.title} is off air right now. Try another station.` : `Couldn't play ${t.title}.`);
 }
+
+export const upNext = (): Track | null => {
+  const { track, queue, seq, order } = usePlayer.getState();
+  if (queue.length < 2) return null;
+  const s = validSeq(seq, queue.length) ? seq : order === 'shuffle' ? shuffled(0, queue.length) : identity(queue.length);
+  const qi = track ? queue.findIndex((x) => x.id === track.id) : -1;
+  const si = s.indexOf(qi);
+  return queue[s[((si < 0 ? 0 : si) + 1 + s.length) % s.length]] ?? null;
+};
 
 export const usePlayer = create<PlayerState>((set, get) => ({
   track: null,
   queue: [],
+  seq: [],
+  order: readOrder(),
   context: '',
   status: 'idle',
   volume: readVolume(),
@@ -112,7 +156,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   duration: 0,
   at: 0,
   play(track, queue, context, at) {
-    set({ track, status: 'loading', position: 0, ...(queue ? { queue } : {}), ...(context !== undefined ? { context } : {}) });
+    const prev = get();
+    const q = queue ?? prev.queue;
+    const sameQueue = !queue || queue === prev.queue || idsOf(q) === idsOf(prev.queue);
+    const idx = q.findIndex((t) => t.id === track.id);
+    let seq: number[];
+    if (prev.order === 'linear') seq = identity(q.length);
+    else if (sameQueue && validSeq(prev.seq, q.length)) seq = idx < 0 ? prev.seq : [idx, ...prev.seq.filter((i) => i !== idx)];
+    else seq = shuffled(idx, q.length);
+    if (!sameQueue) autoSkips = 0;
+    set({ track, queue: q, seq, status: 'loading', position: 0, ...(context !== undefined ? { context } : {}) });
     setMediaSession(track);
     if (track.kind === 'radio') {
       reportClick(track.id);
@@ -149,10 +202,29 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
   },
   skip(dir) {
-    const { track, queue } = get();
+    const { track, queue, seq, order } = get();
     if (!queue.length) return;
-    const i = track ? queue.findIndex((s) => s.id === track.id) : -1;
-    get().play(queue[(i + dir + queue.length) % queue.length]);
+    const qi = track ? queue.findIndex((t) => t.id === track.id) : -1;
+    let s = seq;
+    if (!validSeq(s, queue.length)) {
+      s = order === 'linear' ? identity(queue.length) : shuffled(qi, queue.length);
+      set({ seq: s });
+    }
+    const si = s.indexOf(qi);
+    const t = queue[s[((si < 0 ? 0 : si) + dir + s.length) % s.length]];
+    if (t) get().play(t);
+  },
+  setOrder(order) {
+    const { queue, track, seq } = get();
+    const qi = track ? queue.findIndex((t) => t.id === track.id) : -1;
+    const seq2 =
+      order === 'linear'
+        ? identity(queue.length)
+        : validSeq(seq, queue.length) && qi >= 0
+          ? [qi, ...seq.filter((i) => i !== qi)]
+          : shuffled(qi, queue.length);
+    try { localStorage.setItem('jam.order', order); } catch {}
+    set({ order, seq: seq2 });
   },
   seek(sec) {
     const { track } = get();
@@ -197,8 +269,11 @@ yt.on({
     else if (code === 3) usePlayer.setState({ status: 'loading' });
     else if (code === 2) { if (s.status !== 'loading') usePlayer.setState({ status: 'paused' }); }
     else if (code === 0) {
-      const d = yt.duration() || s.duration;
-      if (d > 0 && yt.time() >= d - 3) s.skip(1); // genuinely finished
+      // ENDED also arrives for the video we just swapped out — ignore that burst,
+      // then always advance. Waiting for a known duration used to stall the queue
+      // whenever YouTube's metadata disagreed with the embed.
+      if (Date.now() - loadedAt < 4000) return;
+      s.skip(1);
     }
   },
   error() {

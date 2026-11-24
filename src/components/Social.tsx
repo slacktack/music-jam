@@ -8,32 +8,39 @@ import { useLikes } from '../lib/likes';
 import { Avatar, Cover, DotGlyph, DotText, Eq } from './Art';
 import { REACTIONS } from '../lib/glyphs';
 import { StationTile, TrackRow } from './Lists';
+import { RoomCard, RoomEmpty } from './Rooms';
+import { ChatMedia, viewMedia } from './ChatMedia';
+import type { Media } from '../lib/media';
 import { PALETTE } from '../lib/color';
 
 export function FloorView() {
   const users = useFloor((s) => s.users);
   const spots = useFloor((s) => s.spots);
   const status = useFloor((s) => s.status);
+  const room = useFloor((s) => s.room);
   const currentId = usePlayer((s) => s.track?.id);
   const join = (i: number) => {
     const s = spots[i];
-    usePlayer.getState().play(s.track, spots.map((x) => x.track), 'The floor', s.at);
+    usePlayer.getState().play(s.track, spots.map((x) => x.track), room ? `In ${room.name}` : 'The floor', s.at);
   };
 
   return (
     <div className="page floor">
+      <RoomCard />
       <header className="floor-head">
         <span className="kicker doto"><i className={`live-dot ${status === 'live' ? '' : 'off'}`} />{status === 'live' ? 'LIVE' : status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}</span>
         <DotText text={String(users.length).padStart(3, '0')} colors={[PALETTE.phosphor, PALETTE.lime, PALETTE.cyan]} className="floor-count" />
-        <h1>on the floor</h1>
-        <p>Everyone here, and what they're playing. Tap a circle to jump in. Songs join at the same second.</p>
+        <h1>{room ? `in ${room.name}` : 'on the floor'}</h1>
+        <p>{room ? 'Only this room, and only people holding the link. Tap a circle to play the same thing at the same second.' : "Everyone here, and what they're playing. Tap a circle to jump in. Songs join at the same second."}</p>
       </header>
 
       {spots.length === 0 ? (
-        <div className="empty">
-          <DotGlyph glyph="note" size={56} mode="build" />
-          <p>{status === 'offline' ? "Can't reach the floor right now. Music still works, we'll keep trying." : "Nobody's playing yet. Start something and light up the floor."}</p>
-        </div>
+        room ? <RoomEmpty /> : (
+          <div className="empty">
+            <DotGlyph glyph="note" size={56} mode="build" />
+            <p>{status === 'offline' ? "Can't reach the floor right now. Music still works, we'll keep trying." : "Nobody's playing yet. Start something and light up the floor."}</p>
+          </div>
+        )
       ) : (
         <div className="orbits">
           <AnimatePresence>
@@ -64,7 +71,7 @@ export function FloorView() {
       )}
 
       <section>
-        <div className="shead"><h2>Everyone</h2></div>
+        <div className="shead"><h2>{room ? 'In this room' : 'Everyone'}</h2></div>
         <div className="people">
           {users.map((u) => (
             <button key={u.id} className="person" disabled={!u.track || u.me} onClick={() => u.track && usePlayer.getState().play(u.track, [u.track], `With ${u.name}`, u.at)}>
@@ -78,7 +85,11 @@ export function FloorView() {
           ))}
         </div>
       </section>
-      <p className="fine">Floor runs on {RELAYS.length} public Nostr relays. Your name and what you play are public to everyone here.</p>
+      <p className="fine">
+        {room
+          ? 'Room traffic is NIP-44 encrypted before it leaves your device, so the relays store ciphertext only.'
+          : `Floor runs on ${RELAYS.length} public Nostr relays. Your name and what you play are public to everyone here.`}
+      </p>
     </div>
   );
 }
@@ -92,13 +103,14 @@ const ago = (ts: number) => {
 
 function OnTheFloor() {
   const spots = useFloor((s) => s.spots);
+  const room = useFloor((s) => s.room);
   if (!spots.length) return null;
   return (
     <div className="chat-onfloor">
-      <span className="doto">PLAYING ON THE FLOOR</span>
+      <span className="doto">{room ? 'PLAYING IN THE ROOM' : 'PLAYING ON THE FLOOR'}</span>
       <div className="onfloor-list">
         {spots.slice(0, 4).map((s) => (
-          <button key={s.track.id} className="onfloor" onClick={() => usePlayer.getState().play(s.track, spots.map((x) => x.track), 'The floor', s.at)} title={`Join ${s.track.title}`}>
+          <button key={s.track.id} className="onfloor" onClick={() => usePlayer.getState().play(s.track, spots.map((x) => x.track), room ? `In ${room.name}` : 'The floor', s.at)} title={`Join ${s.track.title}`}>
             <span className="onfloor-art"><Cover track={s.track} /></span>
             <span className="onfloor-text"><b>{s.track.title}</b><small className="doto">{s.count} IN</small></span>
           </button>
@@ -113,7 +125,9 @@ export function Chat({ embedded }: { embedded?: boolean }) {
   const status = useFloor((s) => s.status);
   const myId = useFloor((s) => s.myId);
   const users = useFloor((s) => s.users);
+  const room = useFloor((s) => s.room);
   const [text, setText] = useState('');
+  const [pending, setPending] = useState<Media | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [, tick] = useState(0);
@@ -122,25 +136,27 @@ export function Chat({ embedded }: { embedded?: boolean }) {
     useFloor.getState().clearUnread();
     const el = list.current;
     if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [messages.length]);
+  }, [messages.length, pending]);
   useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 30000); return () => clearInterval(id); }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
-    if (!t) return;
+    if (!t && !pending) return;
     stick.current = true;
     setText('');
-    const ok = await useFloor.getState().sendChat(t);
-    if (!ok) setText((cur) => cur || t);
+    const media = pending;
+    setPending(null);
+    const ok = await useFloor.getState().sendChat(t, media ?? undefined);
+    if (!ok) { setText((cur) => cur || t); setPending(media); }
   };
 
   return (
     <div className={`chat ${embedded ? 'embedded' : ''}`}>
       <div className="chat-head">
         <div>
-          <h2>Floor chat</h2>
-          <small>{status === 'live' ? 'Everyone on JAM sees this' : status === 'connecting' ? 'Connecting to the floor…' : 'Offline, retrying'}</small>
+          <h2>{room ? `${room.name} chat` : 'Floor chat'}</h2>
+          <small>{status === 'live' ? (room ? 'Encrypted · only this room reads it' : 'Everyone on JAM sees this') : status === 'connecting' ? 'Connecting…' : 'Offline, retrying'}</small>
         </div>
         <div className="chat-live">
           <span className="stack">{users.slice(0, 4).map((u) => <Avatar key={u.id} seed={u.id} color={u.color} size={26} />)}</span>
@@ -182,6 +198,12 @@ export function Chat({ embedded }: { embedded?: boolean }) {
                   </div>
                 )}
                 <p className="msg-text">{m.text}</p>
+                {m.media && (
+                  <button type="button" className="msg-media" onClick={() => viewMedia({ ...m.media!, by: m.user.name })} aria-label={`Open ${m.media.k === 'gif' ? 'GIF' : 'photo'} from ${m.user.name}`} title="Tap to open">
+                    <img src={m.media.s} alt={m.media.k === 'gif' ? 'GIF shared in the room' : 'Photo shared in the room'} loading="lazy" />
+                    <span className="msg-media-zoom doto">OPEN</span>
+                  </button>
+                )}
                 {!grouped && m.on && <span className="msg-on doto"><Eq on={false} />{m.on}</span>}
               </div>
             </motion.div>
@@ -197,9 +219,10 @@ export function Chat({ embedded }: { embedded?: boolean }) {
             </motion.button>
           ))}
         </div>
+        {room && <ChatMedia pending={pending} setPending={setPending} onEmoji={(e) => setText((t) => (t + e).slice(0, 280))} />}
         <form className="chat-form" onSubmit={submit}>
-          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder="Message the floor" aria-label="Message" enterKeyHint="send" autoComplete="off" />
-          <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim()} aria-label="Send"><ArrowUp size={19} strokeWidth={2.6} /></motion.button>
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder={room ? 'Message the room' : 'Message the floor'} aria-label="Message" enterKeyHint="send" autoComplete="off" />
+          <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim() && !pending} aria-label="Send"><ArrowUp size={19} strokeWidth={2.6} /></motion.button>
         </form>
       </div>
     </div>

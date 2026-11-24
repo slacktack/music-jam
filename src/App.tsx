@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion, useDragControls } from 'motion/react';
-import { Heart, Home as HomeIcon, MessageCircle, Moon, Palette, Radio as RadioIcon, Search as SearchIcon, Sun, Users } from 'lucide-react';
+import { Heart, Home as HomeIcon, MessageCircle, Moon, Palette, Radio as RadioIcon, Search as SearchIcon, Sun, Users, MonitorPlay } from 'lucide-react';
 import { ACCENTS, useTheme } from './lib/theme';
+import { flipMode, isDark, skinById, useSkin } from './lib/skins';
 import { useRef } from 'react';
 import { COLORS } from './lib/color';
 import { trackColors } from './lib/catalog';
@@ -15,6 +16,12 @@ import { Avatar, DotGlyph } from './components/Art';
 import { Collection, Home, RadioHub, Search } from './components/Pages';
 import { Chat, FloorView, Likes } from './components/Social';
 import { MiniPlayer, NowPlaying, Theater, VideoHost } from './components/Player';
+import { RoomChip, useRoomLink } from './components/Rooms';
+import { SkinGrid, ThemesPage } from './components/Skins';
+import { ShareSheet } from './components/Share';
+import { MediaViewer } from './components/ChatMedia';
+import { Cursor } from './components/Cursor';
+import { Tube } from './components/Tube';
 import { setSheetOpen } from './components/canvas';
 
 const mq = matchMedia('(min-width: 1024px)');
@@ -61,22 +68,39 @@ function TopSearch() {
 }
 
 function ThemeControls() {
-  const theme = useTheme((s) => s.theme);
   const accent = useTheme((s) => s.accent);
+  const skinId = useSkin((s) => s.skin);
+  const skin = skinById(skinId);
+  const jam = skinId === 'jam';
+  const dark = isDark();
   const [open, setOpen] = useState(false);
   return (
     <div className="theme-ctl">
-      <button className="cap-btn round" onClick={() => setOpen((o) => !o)} aria-label="Accent colour" aria-expanded={open}><Palette size={18} /></button>
-      <button className="cap-btn round" onClick={useTheme.getState().toggle} aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+      <button className="cap-btn round" onClick={() => setOpen((o) => !o)} aria-label="Skins and accent colour" aria-expanded={open}>
+        {skinId === 'jam' ? <Palette size={18} /> : <span className="skin-dots"><i style={{ background: skin.swatch[0] }} /><i style={{ background: skin.swatch[1] }} /></span>}
+      </button>
+      {/* Every skin ships a light and a dark palette, so this always does something. */}
+      <button className="cap-btn mode-btn" onClick={flipMode} aria-pressed={dark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
+        {dark ? <Sun size={18} /> : <Moon size={18} />}
+        <span className="mode-label doto">{dark ? 'Light' : 'Dark'} mode</span>
+      </button>
       <AnimatePresence>
         {open && (
           <>
             <div className="scrim" onClick={() => setOpen(false)} />
-            <motion.div className="me-pop accent-pop" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
+            <motion.div className="me-pop accent-pop wide" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
+              <span className="pop-title">Skins</span>
+              <SkinGrid compact />
+              <button className="pop-link" onClick={() => { setOpen(false); go('/themes'); }}>All themes</button>
               <span className="pop-title">Accent</span>
               {ACCENTS.map((a) => (
-                <button key={a.id} className={`accent-row ${accent === a.id ? 'on' : ''}`} onClick={() => { useTheme.getState().setAccent(a.id); setOpen(false); }}>
-                  <i style={{ background: `linear-gradient(135deg, ${a.colors[0]}, ${a.colors[1]})` }} />{a.label}
+                <button
+                  key={a.id}
+                  className={`accent-row ${accent === a.id ? 'on' : ''} ${a.id === 'music' && !jam ? 'dim' : ''}`}
+                  title={a.id === 'music' && !jam ? 'Skins keep their own palette. Pick a colour to override.' : a.label}
+                  onClick={() => { useTheme.getState().setAccent(a.id); setOpen(false); }}
+                >
+                  <i style={{ background: a.id === 'music' && !jam ? 'var(--s3)' : `linear-gradient(135deg, ${a.colors[0]}, ${a.colors[1]})` }} />{a.label}
                 </button>
               ))}
             </motion.div>
@@ -122,7 +146,8 @@ function Identity() {
             <motion.div className="me-pop" initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}>
               <label>Your name on the floor<input value={name} maxLength={24} onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === 'Enter' && (save(), setOpen(false))} /></label>
               <div className="pop-row">
-                <button className="pop-link" onClick={useTheme.getState().toggle}>{useTheme.getState().theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} {useTheme.getState().theme === 'dark' ? 'Light' : 'Dark'} theme</button>
+                <button className="pop-link" onClick={flipMode}>{isDark() ? <Sun size={16} /> : <Moon size={16} />} {isDark() ? 'Light' : 'Dark'} mode</button>
+                <button className="pop-link" onClick={() => { setOpen(false); go('/themes'); }}><Palette size={16} /> Skins</button>
               </div>
               <div className="accent-dots" role="radiogroup" aria-label="Accent">
                 {ACCENTS.map((a) => <button key={a.id} role="radio" aria-checked={useTheme.getState().accent === a.id} title={a.label} className={useTheme.getState().accent === a.id ? 'on' : ''} style={{ background: a.id === 'music' ? 'conic-gradient(#FF8A00, #FF2D95, #5B5BFF, #2BD94A, #FF8A00)' : `linear-gradient(135deg, ${a.colors[0]}, ${a.colors[1]})` }} onClick={() => useTheme.getState().setAccent(a.id)} />)}
@@ -198,22 +223,38 @@ export function App() {
   const playing = usePlayer((s) => s.status === 'playing');
   const unread = useFloor((s) => s.unread);
   useSharedTrack(route, () => !desktop && setSheet(true));
+  useRoomLink(route);
 
   const accentMode = useTheme((s) => s.accent);
+  const skinId = useSkin((s) => s.skin);
   useEffect(() => {
+    // Fixed accent from the picker wins, then the skin's own palette, then the music.
     const fixed = ACCENTS.find((x) => x.id === accentMode && x.id !== 'music');
-    const [a, b] = fixed ? fixed.colors : track ? trackColors(track, usePlayer.getState().context) : ['#FF8A00', '#FF2D95'];
+    const skin = skinById(skinId);
+    const [a, b] = fixed ? fixed.colors : skin.accent ? ['var(--k1)', 'var(--k2)'] : (track ? trackColors(track, usePlayer.getState().context) : ['#FF8A00', '#FF2D95']);
     const root = document.documentElement.style;
     root.setProperty('--accent', a);
     root.setProperty('--accent2', b);
     document.title = track && playing ? `${track.title} · JAM` : 'JAM · every radio, one floor';
-  }, [track, playing, accentMode]);
+  }, [track, playing, accentMode, skinId]);
 
   useEffect(() => {
     const id = setTimeout(warmUpYouTube, 1200);
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (e.code !== 'Space' || /INPUT|TEXTAREA|BUTTON|A/.test(t.tagName)) return;
+      if (/INPUT|TEXTAREA/.test(t.tagName)) return;
+      if (e.key.toLowerCase() === 's' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const linear = usePlayer.getState().order !== 'shuffle';
+        usePlayer.getState().setOrder(linear ? 'shuffle' : 'linear');
+        toast(linear ? 'Shuffling this list' : 'Back to playing in order', 'info');
+        return;
+      }
+      if (e.key.toLowerCase() === 't' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        useSkin.getState().cycle();
+        toast(`Skin: ${skinById(useSkin.getState().skin).label}`, 'info');
+        return;
+      }
+      if (e.code !== 'Space' || /BUTTON|A/.test(t.tagName)) return;
       e.preventDefault();
       usePlayer.getState().toggle();
     };
@@ -238,11 +279,12 @@ export function App() {
   const tabs = [
     { path: '/', name: 'home', label: 'Home', icon: HomeIcon },
     { path: '/radio', name: 'stations', label: 'Radio', icon: RadioIcon },
-    { path: '/search', name: 'search', label: 'Search', icon: SearchIcon },
+    { path: '/tube', name: 'tube', label: 'Tube', icon: MonitorPlay },
+    ...(desktop ? [{ path: '/search', name: 'search', label: 'Search', icon: SearchIcon }] : []),
     { path: '/floor', name: 'floor', label: 'Floor', icon: Users },
     ...(desktop ? [{ path: '/likes', name: 'likes', label: 'Likes', icon: Heart }] : [{ path: '/chat', name: 'chat', label: 'Chat', icon: MessageCircle }]),
   ];
-  const activeTab = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? 'home' : route.name;
+  const activeTab = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? 'home' : route.name === 'room' ? 'floor' : route.name;
   const nav = tabs.map((t) => (
     <a key={t.name} className={`nav-btn ${activeTab === t.name ? 'on' : ''}`} {...linkProps(t.path)} aria-current={activeTab === t.name ? 'page' : undefined} aria-label={t.label}>
       {activeTab === t.name && <motion.span layoutId={desktop ? 'rail-pill' : 'tab-pill'} className="nav-pill" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
@@ -259,6 +301,8 @@ export function App() {
     case 'fest': page = <Collection kind="fest" id={route.id} />; break;
     case 'artist': page = <Collection kind="artist" id={route.id} />; break;
     case 'floor': page = <FloorView />; break;
+    case 'tube': page = <Tube />; break;
+    case 'themes': page = <ThemesPage />; break;
     case 'chat': page = <div className="page chat-page"><Chat /></div>; break;
     case 'likes': page = <Likes />; break;
     case 'stations': page = <RadioHub tab={route.tab} />; break;
@@ -277,6 +321,7 @@ export function App() {
           {!desktop && <Logo />}
           {desktop && route.name !== 'search' ? <TopSearch /> : <span className="grow" />}
           {desktop && <ThemeControls />}
+          <RoomChip />
           <Identity />
         </div>
         <AnimatePresence mode="wait" initial={false}>
@@ -322,6 +367,9 @@ export function App() {
 
       <Theater />
       <VideoHost />
+      <ShareSheet />
+      <MediaViewer />
+      <Cursor />
       <Reactions />
       <Toasts />
     </div>

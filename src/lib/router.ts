@@ -10,9 +10,15 @@ export type Route =
   | { name: 'floor' }
   | { name: 'chat' }
   | { name: 'likes' }
+  | { name: 'tube' }
+  | { name: 'themes' }
+  | { name: 'room'; code: string }
   | { name: 'stations'; tab: string }
   | { name: 'radio'; id: string }
   | { name: 'song'; id: string; title: string; by: string };
+
+/** Room codes are 12 hex chars, but accept any hex label so a link stays readable. */
+const ROOM_CODE = /^[0-9a-f]{6,16}$/i;
 
 function parse(): Route {
   const parts = location.pathname.split('/').filter(Boolean).map(decodeURIComponent);
@@ -26,6 +32,9 @@ function parse(): Route {
     case 'floor': return { name: 'floor' };
     case 'chat': return { name: 'chat' };
     case 'likes': return { name: 'likes' };
+    case 'tube': return { name: 'tube' };
+    case 'themes': return { name: 'themes' };
+    case 'room': return b && ROOM_CODE.test(b) ? { name: 'room', code: b.toLowerCase() } : { name: 'home' };
     case 'radio': return { name: 'stations', tab: b || 'india' };
     case 'r': return b && /^[0-9a-f-]{36}$/i.test(b) ? { name: 'radio', id: b } : { name: 'home' };
     case 's': return b && /^[\w-]{11}$/.test(b) ? { name: 'song', id: b, title: qs.get('t') || '', by: qs.get('a') || '' } : { name: 'home' };

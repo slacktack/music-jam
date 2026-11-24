@@ -7,6 +7,7 @@ import { searchSongs } from '../lib/songs';
 import { searchStations, stationsFor } from '../lib/radio';
 import { useFloor } from '../lib/floor';
 import { usePlayer } from '../lib/player';
+import { sharePage } from '../lib/share';
 import { back, go, linkProps } from '../lib/router';
 import type { Track } from '../lib/types';
 import { DotGlyph, DotNumber, DotText, FlowArt } from './Art';
@@ -51,11 +52,11 @@ function SectionHead({ title, kicker, to }: { title: string; kicker?: string; to
   );
 }
 
-function SongList({ q, context, limit }: { q: string; context: string; limit?: number }) {
-  const [s, retry] = useLoad((sig) => searchSongs(q, sig), [q]);
+function SongList({ q, context, limit, parts }: { q: string; context: string; limit?: number; parts?: number }) {
+  const [s, retry] = useLoad((sig) => searchSongs(q, sig, parts), [q, parts]);
   if (s.state === 'loading') return <RowSkeleton n={limit ?? 8} />;
   if (s.state === 'error') return <Empty text="Songs didn't load. Check your connection." retry={retry} />;
-  const list = limit ? s.data.slice(0, limit) : s.data;
+  const list = s.data.slice(0, limit ?? 100);
   if (!list.length) return <Empty glyph="search" text="No songs found." />;
   return <div className="rows">{list.map((t, i) => <TrackRow key={t.id} track={t} queue={s.data} context={context} index={i} />)}</div>;
 }
@@ -123,8 +124,8 @@ export function Home() {
             <DotNumber value={String(total).padStart(3, '0')} height={22} />
             <span>{status === 'live' ? 'on the floor right now' : status === 'connecting' ? 'joining the floor…' : 'floor offline, music still works'}</span>
           </div>
-          <h1>Aaj kya sunoge?</h1>
-          <p>Every free radio and every song, on one shared floor. No rooms, no sign-up.</p>
+          <h1>Aaj kya <em>sunoge?</em></h1>
+          <p>Every free radio and every song, on one shared floor. Or slip into a private room with your own link. No sign-up either way.</p>
           <a className="search-pill" {...linkProps('/search')}>
             <SearchIcon size={18} />
             <span>Songs, singers, stations, festivals…</span>
@@ -158,7 +159,7 @@ export function Home() {
 
       <section>
         <SectionHead kicker="03" title="Trending in India" to="/vibe/hindi" />
-        <SongList q={`trending hindi punjabi songs ${new Date().getFullYear()}`} context="Trending in India" limit={8} />
+        <SongList q={`trending hindi songs ${new Date().getFullYear()}||trending punjabi songs ${new Date().getFullYear()}||bollywood hits this week`} context="Trending in India" limit={12} parts={2} />
       </section>
 
       <section>
@@ -227,7 +228,7 @@ export function Collection({ kind, id }: { kind: 'vibe' | 'fest' | 'artist'; id:
           <div className="btn-row">
             <button className="btn primary" onClick={() => playCollection({ songs: item.songs, radio: item.radio, label: item.label })}><Play size={18} fill="currentColor" /> Play songs</button>
             <button className="btn glass" onClick={() => playCollection({ songs: item.songs, radio: item.radio, label: item.label }, 'radio')}><RadioIcon size={18} /> Radio</button>
-            <button className="btn glass" onClick={() => { const url = location.href; navigator.share ? navigator.share({ title: item.label, url }).catch(() => {}) : navigator.clipboard?.writeText(url); }}><Share2 size={17} /> Share</button>
+            <button className="btn glass" onClick={() => sharePage(item.label)}><Share2 size={17} /> Share</button>
           </div>
         </div>
       </header>
@@ -313,7 +314,7 @@ export function Search({ q }: { q: string }) {
           )}
           <section>
             <SectionHead title="Songs" />
-            <SongList q={fest ? `${term}||${fest.songs}` : /song|music|gaan|geet|bhajan|radio|mix|lofi|remix/i.test(term) ? term : `${term} song`} context={`Search: ${term}`} limit={20} />
+            <SongList q={fest ? `${term}||${fest.songs}` : /song|music|gaan|geet|bhajan|radio|mix|lofi|remix/i.test(term) ? term : `${term} song||${term} hit songs||${term} jukebox`} context={`Search: ${term}`} limit={24} parts={3} />
           </section>
           <section>
             <SectionHead title="Live stations" />
