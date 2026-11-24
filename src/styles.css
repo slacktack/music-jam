@@ -900,7 +900,8 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 /* ---------- desktop ---------- */
 @media (min-width: 1024px) {
   :root { --dock-h: 0px; }
-  .app { display: grid; grid-template-columns: 92px minmax(0, 1fr) clamp(340px, 26vw, 420px); }
+  .app { --side-w: clamp(340px, 26vw, 420px); display: grid; grid-template-columns: 92px minmax(0, 1fr) var(--side-w); transition: grid-template-columns 0.5s var(--ease); }
+  .app.has-video { --side-w: clamp(420px, 36vw, 640px); }
   .main { padding: 14px 32px 60px; }
   .has-track .main { padding-bottom: 60px; }
   .siderail { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 26px 0; }
@@ -914,7 +915,7 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .siderail .nav-btn.on { color: #050507; }
   .side { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 12px; height: 100dvh; min-height: 0; padding: 12px 12px 12px 0; }
   .panel { border-radius: 34px; background: rgba(13, 13, 18, 0.72); border: 1px solid var(--line); backdrop-filter: blur(36px) saturate(1.4); -webkit-backdrop-filter: blur(36px) saturate(1.4); overflow: hidden; }
-  .np-panel { flex: 0 1 auto; min-height: 150px; overflow-y: auto; }
+  .np-panel { flex: 0 1 auto; min-height: 120px; overflow-y: auto; transition: flex-basis 0.4s var(--ease); }
   .np.v-panel { padding: 14px 16px 16px; gap: 10px; min-height: 100%; }
   .np.v-panel .np-top { min-height: 36px; }
   .np.v-panel .icon-btn.glass { width: 36px; height: 36px; }
@@ -939,7 +940,7 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .np-empty.v-panel { padding: 22px 10px; }
   .chat-panel .chat { flex: 1; min-height: 0; }
   .np.v-panel .volume { margin-top: 2px; }
-  .chat-panel { flex: 1 0 330px; min-height: 330px; display: flex; flex-direction: column; padding: 20px 18px 16px; background: radial-gradient(120% 60% at 50% 110%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%), rgba(13, 13, 18, 0.72); }
+  .chat-panel { position: relative; flex: 1 1 0; min-height: 210px; display: flex; flex-direction: column; padding: 20px 18px 16px; background: radial-gradient(120% 60% at 50% 110%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%), rgba(13, 13, 18, 0.72); }
   .hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: center; gap: 40px; padding-top: 18px; }
   .hero .search-pill { display: none; }
   .now-fest { min-height: 360px; }
@@ -976,15 +977,67 @@ input[type='range']::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .banner .back { left: 32px; top: 18px; }
   .banner-text { padding: 26px 32px 10px; }
   .chat-page { height: calc(100dvh - 120px); }
-  .toasts { top: auto; bottom: 28px; left: 92px; right: clamp(340px, 26vw, 420px); }
+  .toasts { top: auto; bottom: 28px; left: 92px; right: var(--side-w); }
   .reactions > span { bottom: 60px; }
 }
 
 @media (min-width: 1024px) and (max-height: 860px) {
-  .np.v-panel .np-art.song { width: 78%; align-self: center; }
   .np.v-panel .np-art.radio { width: 110px; }
-  .np.v-panel .volume, .chat-panel .chat-onfloor { display: none; }
-  .chat-panel { flex-basis: 300px; min-height: 300px; }
+  .np.v-panel .volume, .np.v-panel .crowd, .chat-panel .chat-onfloor { display: none; }
+  .np.v-panel .wave-bars { height: 22px; }
+}
+
+
+/* ---------- desktop side: wide video, transport row, roomy chat ---------- */
+@media (min-width: 1024px) {
+  .np.v-panel .np-art.song { width: 100%; border-radius: 14px; }
+  .np.v-panel .controls { justify-content: space-between; gap: 8px; }
+  .np.v-panel .np-order { display: block; }
+  .np.v-panel .volume .icon-btn { display: none; }
+  .side-ctl { width: 38px !important; height: 38px !important; background: none !important; border: 0 !important; color: var(--mute); box-shadow: none !important; }
+  .side-ctl.order-toggle.on { color: var(--accent); }
+  .side-ctl svg { width: 18px !important; height: 18px !important; }
+  .chat-panel { padding: 14px 14px 12px; }
+  .chat-panel .chat-head { padding-bottom: 8px; }
+  .chat-panel .chat-head h2 { font-size: 18px; }
+  .chat-panel .chat-head small { font-size: 11px; margin-top: 1px; }
+  .chat-panel .chat-onfloor { padding: 8px 0; }
+  .chat-panel .chat-list { padding-top: 8px; }
+  .chat-panel .msg:not(.grouped) { margin-top: 10px; }
+  .chat-panel .msg-text { font-size: 14.5px; }
+  .chat-panel .composer { padding-top: 6px; gap: 6px; }
+  .chat-panel .quick button { height: 26px; }
+  .chat-panel .chat-form { height: 46px; border-radius: 14px; }
+  .chat-panel .chat-form button { width: 36px; height: 36px; }
+}
+.np-status-text { display: none; font: inherit; }
+
+
+/* ---------- side column modes: watch (big player, slim chat) and chat (player folds to a row) ---------- */
+@media (min-width: 1024px) {
+  .side-swap { position: absolute; z-index: 3; top: 12px; right: 12px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: var(--mute); background: var(--s2); border: 1px solid var(--line); }
+  .side-swap:hover { color: var(--text); }
+  .side .chat-panel .chat-live { margin-right: 40px; }
+  .side:not(.chat-mode) .chat-panel .chat-onfloor,
+  .side:not(.chat-mode) .chat-panel .quick,
+  .side:not(.chat-mode) .chat-panel .chat-media { display: none; }
+  .side:not(.chat-mode) .np.v-panel .upnext { display: none; }
+  .side.chat-mode .np-panel { flex: none; overflow: hidden; cursor: pointer; }
+  .side.chat-mode .np.v-panel { display: grid; grid-template-columns: 172px minmax(0, 1fr); grid-template-areas: 'art title' 'art ctl'; align-items: center; gap: 4px 14px; padding: 10px; min-height: 0; }
+  .side.chat-mode .np.v-panel > * { display: none; }
+  .side.chat-mode .np.v-panel > .np-bg { display: block; }
+  .side.chat-mode .np.v-panel > .np-art { display: block; grid-area: art; width: 100%; margin: 0; outline: 0; transform: none; border-width: 0; animation: none; }
+  .side.chat-mode .np.v-panel > .np-art.radio { width: 84px; justify-self: center; }
+  .side.chat-mode .np.v-panel > .np-title { display: flex; grid-area: title; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+  .side.chat-mode .np.v-panel > .np-title::before { display: none; }
+  .side.chat-mode .np.v-panel .np-title h3 { font-size: 15px; letter-spacing: -0.01em; -webkit-line-clamp: 2; }
+  .side.chat-mode .np.v-panel .np-title p { font-size: 12px; }
+  .side.chat-mode .np.v-panel > .controls { display: flex; grid-area: ctl; justify-content: flex-start; gap: 6px; border: 0; }
+  .side.chat-mode .np.v-panel .controls > * { width: 38px !important; height: 38px !important; flex: none !important; margin: 0; }
+  .side.chat-mode .np.v-panel .controls .play-btn { width: 44px !important; height: 44px !important; }
+  .side.chat-mode .np.v-panel .controls svg { width: 17px !important; height: 17px !important; }
+  .side.chat-mode .np.v-panel .play-orbit, .side.chat-mode .np.v-panel .side-ctl { display: none; }
+  .side.chat-mode .chat-panel { flex: 1 1 0; }
 }
 
 /* =================================================================== light theme */

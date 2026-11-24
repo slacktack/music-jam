@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowUp, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
+import { useKit } from '../lib/skinKit';
 import { colorsFor } from '../lib/color';
 import { RELAYS, useFloor } from '../lib/floor';
 import { usePlayer } from '../lib/player';
@@ -151,11 +152,13 @@ export function Chat({ embedded }: { embedded?: boolean }) {
     if (!ok) { setText((cur) => cur || t); setPending(media); }
   };
 
+  const k = useKit();
+  const Send = k.icons.send;
   return (
     <div className={`chat ${embedded ? 'embedded' : ''}`}>
       <div className="chat-head">
         <div>
-          <h2>{room ? `${room.name} chat` : 'Floor chat'}</h2>
+          <h2>{room ? `${room.name} chat` : k.words.chatTitle || 'Floor chat'}</h2>
           <small>{status === 'live' ? (room ? 'Encrypted · only this room reads it' : 'Everyone on JAM sees this') : status === 'connecting' ? 'Connecting…' : 'Offline, retrying'}</small>
         </div>
         <div className="chat-live">
@@ -221,8 +224,8 @@ export function Chat({ embedded }: { embedded?: boolean }) {
         </div>
         {room && <ChatMedia pending={pending} setPending={setPending} onEmoji={(e) => setText((t) => (t + e).slice(0, 280))} />}
         <form className="chat-form" onSubmit={submit}>
-          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder={room ? 'Message the room' : 'Message the floor'} aria-label="Message" enterKeyHint="send" autoComplete="off" />
-          <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim() && !pending} aria-label="Send"><ArrowUp size={19} strokeWidth={2.6} /></motion.button>
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={280} placeholder={k.words.message || (room ? 'Message the room' : 'Message the floor')} aria-label="Message" enterKeyHint="send" autoComplete="off" />
+          <motion.button type="submit" whileTap={{ scale: 0.85 }} disabled={!text.trim() && !pending} aria-label="Send"><Send size={19} strokeWidth={2.6} /></motion.button>
         </form>
       </div>
     </div>

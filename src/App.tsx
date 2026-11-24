@@ -1,8 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion, useDragControls } from 'motion/react';
-import { Heart, Home as HomeIcon, MessageCircle, Moon, Palette, Radio as RadioIcon, Search as SearchIcon, Sun, Users, MonitorPlay } from 'lucide-react';
+import { ChevronsDown, ChevronsUp, Heart, Moon, Palette, Search as SearchIcon, Sun } from 'lucide-react';
 import { ACCENTS, useTheme } from './lib/theme';
 import { flipMode, isDark, skinById, useSkin } from './lib/skins';
+import { useKit } from './lib/skinKit';
 import { useRef } from 'react';
 import { COLORS } from './lib/color';
 import { trackColors } from './lib/catalog';
@@ -73,6 +74,7 @@ function ThemeControls() {
   const skin = skinById(skinId);
   const jam = skinId === 'jam';
   const dark = isDark();
+  const kit = useKit();
   const [open, setOpen] = useState(false);
   return (
     <div className="theme-ctl">
@@ -82,7 +84,7 @@ function ThemeControls() {
       {/* Every skin ships a light and a dark palette, so this always does something. */}
       <button className="cap-btn mode-btn" onClick={flipMode} aria-pressed={dark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
         {dark ? <Sun size={18} /> : <Moon size={18} />}
-        <span className="mode-label doto">{dark ? 'Light' : 'Dark'} mode</span>
+        <span className="mode-label doto">{dark ? kit.words.light : kit.words.dark}</span>
       </button>
       <AnimatePresence>
         {open && (
@@ -216,6 +218,9 @@ function useSharedTrack(route: Route, openPlayer: () => void) {
 
 export function App() {
   const desktop = useDesktop();
+  const kit = useKit();
+  // Desktop side column: the player is big until you go to the chat, then it folds to a row.
+  const [chatMode, setChatMode] = useState(false);
   const route = useRoute();
   const [sheet, setSheet] = useState(false);
   const dragControls = useDragControls();
@@ -276,13 +281,14 @@ export function App() {
   }, [sheet]);
   const closeSheet = () => (history.state?.sheet ? history.back() : setSheet(false));
 
+  const { icons: ic, words: w } = kit;
   const tabs = [
-    { path: '/', name: 'home', label: 'Home', icon: HomeIcon },
-    { path: '/radio', name: 'stations', label: 'Radio', icon: RadioIcon },
-    { path: '/tube', name: 'tube', label: 'Tube', icon: MonitorPlay },
-    ...(desktop ? [{ path: '/search', name: 'search', label: 'Search', icon: SearchIcon }] : []),
-    { path: '/floor', name: 'floor', label: 'Floor', icon: Users },
-    ...(desktop ? [{ path: '/likes', name: 'likes', label: 'Likes', icon: Heart }] : [{ path: '/chat', name: 'chat', label: 'Chat', icon: MessageCircle }]),
+    { path: '/', name: 'home', label: w.home, icon: ic.home },
+    { path: '/radio', name: 'stations', label: w.stations, icon: ic.stations },
+    { path: '/tube', name: 'tube', label: w.tube, icon: ic.tube },
+    ...(desktop ? [{ path: '/search', name: 'search', label: w.search, icon: ic.search }] : []),
+    { path: '/floor', name: 'floor', label: w.floor, icon: ic.floor },
+    ...(desktop ? [{ path: '/likes', name: 'likes', label: w.likes, icon: ic.likes }] : [{ path: '/chat', name: 'chat', label: w.chat, icon: ic.chat }]),
   ];
   const activeTab = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? 'home' : route.name === 'room' ? 'floor' : route.name;
   const nav = tabs.map((t) => (
@@ -311,7 +317,7 @@ export function App() {
   const pageKey = route.name === 'vibe' || route.name === 'fest' || route.name === 'artist' ? `${route.name}/${route.id}` : route.name === 'search' ? 'search' : route.name;
 
   return (
-    <div className={`app ${playing ? 'is-playing' : ''} ${track ? 'has-track' : ''} ${desktop ? 'desk' : 'mob'}`}>
+    <div className={`app ${playing ? 'is-playing' : ''} ${track ? 'has-track' : ''} ${track?.kind === 'song' ? 'has-video' : ''} ${desktop ? 'desk' : 'mob'}`}>
       <div className="bg" aria-hidden><i className="glow g1" /><i className="glow g2" /><i className="dots" /></div>
 
       {desktop && <nav className="siderail" aria-label="Main"><Logo /><div className="rail-nav">{nav}</div></nav>}
@@ -332,9 +338,18 @@ export function App() {
       </main>
 
       {desktop ? (
-        <aside className="side">
-          <div className="panel np-panel"><NowPlaying variant="panel" /></div>
-          <div className="panel chat-panel"><Chat embedded /></div>
+        <aside className={`side ${chatMode && track ? 'chat-mode' : ''}`}>
+          <div className="panel np-panel" onPointerDown={(e) => !(e.target as HTMLElement).closest('button, input, a, .wave-bars') && setChatMode(false)}>
+            <NowPlaying variant="panel" />
+          </div>
+          <div className="panel chat-panel" onFocusCapture={(e) => !(e.target as HTMLElement).closest('.side-swap') && setChatMode(true)} onPointerDown={(e) => !(e.target as HTMLElement).closest('.side-swap') && setChatMode(true)}>
+            {track && (
+              <button className="side-swap" onClick={() => setChatMode((m) => !m)} aria-label={chatMode ? 'Back to the player' : 'Open the chat'} title={chatMode ? 'Back to the player' : 'Open the chat'}>
+                {chatMode ? <ChevronsDown size={18} /> : <ChevronsUp size={18} />}
+              </button>
+            )}
+            <Chat embedded />
+          </div>
         </aside>
       ) : (
         <>

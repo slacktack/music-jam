@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronDown, Loader2, Maximize2, Pause, Play, Share2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
+import { ChevronDown, Loader2, Maximize2, Pause, Play, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 import { create } from 'zustand';
 import { AnimatePresence } from 'motion/react';
 import { colorsFor, rng } from '../lib/color';
@@ -9,6 +9,7 @@ import { REACTIONS } from '../lib/glyphs';
 import { isLive, upNext, usePlayer, type Status } from '../lib/player';
 import { useFloor } from '../lib/floor';
 import { shareTrack } from '../lib/share';
+import { useKit } from '../lib/skinKit';
 import type { Track } from '../lib/types';
 import { Avatar, Cover, DotGlyph, DotWord, Eq, FlowArt } from './Art';
 import { LikeButton, fmt } from './Lists';
@@ -200,11 +201,12 @@ function Waveform({ track, status, compact }: { track: Track; status: Status; co
 
 function PlayButton({ size = 'lg' }: { size?: 'lg' | 'sm' }) {
   const status = usePlayer((s) => s.status);
+  const { play: PlayIc, pause: PauseIc } = useKit().icons;
   const ic = size === 'lg' ? 30 : 20;
   return (
     <motion.button className={`play-btn ${size} ${status === 'playing' ? 'on' : ''}`} whileTap={{ scale: 0.88 }} onClick={(e) => { e.stopPropagation(); usePlayer.getState().toggle(); }} aria-label={isLive(status) ? 'Pause' : 'Play'}>
       {size === 'lg' && <svg className="play-orbit" viewBox="0 0 120 120" aria-hidden>{Array.from({ length: 36 }, (_, i) => { const a = (i / 36) * Math.PI * 2; return <circle key={i} cx={60 + Math.cos(a) * 56} cy={60 + Math.sin(a) * 56} r={i % 3 === 0 ? 2.4 : 1.4} style={{ animationDelay: `${i * 40}ms` }} />; })}</svg>}
-      {status === 'loading' ? <Loader2 className="spin" size={ic} /> : status === 'playing' ? <Pause size={ic} fill="currentColor" /> : <Play size={ic} fill="currentColor" style={{ marginLeft: size === 'lg' ? 4 : 2 }} />}
+      {status === 'loading' ? <Loader2 className="spin" size={ic} /> : status === 'playing' ? <PauseIc size={ic} fill="currentColor" /> : <PlayIc size={ic} fill="currentColor" style={{ marginLeft: size === 'lg' ? 4 : 2 }} />}
     </motion.button>
   );
 }
@@ -252,6 +254,7 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
   const hasQueue = usePlayer((s) => s.queue.length > 1);
   const order = usePlayer((s) => s.order);
   const next = useUpNext();
+  const { icons: ic, words: w } = useKit();
 
   if (!track) {
     return (
@@ -265,6 +268,13 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
   const colors = colorsFor(track.id);
   const p = usePlayer.getState();
   const on = status === 'playing';
+  // The panel folds the order switch into the transport row; the sheet keeps it labelled below.
+  const order_btn = (inRow: boolean) => (inRow !== (variant === 'panel') ? null : (
+    <button className={`${inRow ? 'ctl side-ctl ' : ''}order-toggle ${order === 'shuffle' ? 'on' : ''}`} onClick={() => p.setOrder(order === 'shuffle' ? 'linear' : 'shuffle')} aria-pressed={order === 'shuffle'} disabled={!hasQueue} title={hasQueue ? (order === 'shuffle' ? w.shuffled : w.inOrder) : 'Play a list to shuffle it'} aria-label={order === 'shuffle' ? w.shuffled : w.inOrder}>
+      <ic.shuffle size={inRow ? 18 : 16} />
+      {!inRow && <span className="doto">{order === 'shuffle' ? w.shuffled : w.inOrder}</span>}
+    </button>
+  ));
 
   return (
     <div className={`np v-${variant}`} style={{ '--c': colors[0], '--c2': colors[1] } as React.CSSProperties}>
@@ -276,10 +286,10 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
       <div className="np-top" onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('button')) onDragStart?.(e); }}>
         {onClose ? <button className="icon-btn glass" onClick={onClose} aria-label="Close player"><ChevronDown size={22} /></button> : <span className="np-spacer" />}
         <div className="np-from">
-          <span className={`np-status ${status}`}><i className={`live-dot ${on ? '' : 'off'}`} /><DotWord value={statusLabel(track, status)} height={18} /></span>
+          <span className={`np-status ${status}`}><i className={`live-dot ${on ? '' : 'off'}`} /><DotWord value={statusLabel(track, status)} height={18} /><b className="np-status-text">{statusLabel(track, status)}</b></span>
           {context && <small>{context}</small>}
         </div>
-        <button className="icon-btn glass" onClick={() => shareTrack(track)} aria-label="Share"><Share2 size={19} /></button>
+        <button className="icon-btn glass" onClick={() => shareTrack(track)} aria-label="Share"><ic.share size={19} /></button>
       </div>
 
       <motion.div key={track.id} className={`np-art ${track.kind} ${on ? 'on' : ''}`} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 24 }}>
@@ -307,21 +317,22 @@ export function NowPlaying({ variant, onClose, onDragStart }: { variant: 'sheet'
       <Waveform track={track} status={status} />
 
       <div className="controls">
-        <button className="ctl" onClick={() => p.skip(-1)} disabled={!hasQueue} aria-label="Previous"><SkipBack size={24} fill="currentColor" /></button>
+        {order_btn(true)}
+        <button className="ctl" onClick={() => p.skip(-1)} disabled={!hasQueue} aria-label="Previous"><ic.prev size={24} fill="currentColor" /></button>
         <PlayButton />
-        <button className="ctl" onClick={() => p.skip(1)} disabled={!hasQueue} aria-label="Next"><SkipForward size={24} fill="currentColor" /></button>
+        <button className="ctl" onClick={() => p.skip(1)} disabled={!hasQueue} aria-label="Next"><ic.next size={24} fill="currentColor" /></button>
+        {variant === 'panel' && (
+          <button className="ctl side-ctl" onClick={p.toggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>{muted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+        )}
       </div>
 
       <div className="np-order">
-        <button className={`order-toggle ${order === 'shuffle' ? 'on' : ''}`} onClick={() => usePlayer.getState().setOrder(order === 'shuffle' ? 'linear' : 'shuffle')} aria-pressed={order === 'shuffle'} disabled={!hasQueue} title={hasQueue ? 'Change the play order' : 'Play a list to shuffle it'}>
-          <Shuffle size={16} />
-          <span className="doto">{order === 'shuffle' ? 'Shuffled' : 'In order'}</span>
-        </button>
+        {order_btn(false)}
         {hasQueue && next && (
           <button className="upnext" onClick={() => usePlayer.getState().play(next)}>
-            <span className="doto">Up next</span>
+            <span className="doto">{w.upNext}</span>
             <span className="upnext-text"><b>{next.title}</b><small>{next.subtitle || (next.kind === 'radio' ? 'Live radio' : '')}</small></span>
-            <SkipForward size={16} />
+            <ic.next size={16} />
           </button>
         )}
       </div>
@@ -352,6 +363,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
   const track = usePlayer((s) => s.track);
   const status = usePlayer((s) => s.status);
   const pos = usePlayer((s) => (s.duration > 0 ? s.position / s.duration : 0));
+  const MiniNext = useKit().icons.next;
   if (!track) return null;
   const [c1, c2] = colorsFor(track.id);
   return (
@@ -364,7 +376,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
         <small><Eq on={status === 'playing'} />{statusLabel(track, status)} · {track.kind === 'radio' ? 'Radio' : track.subtitle}</small>
       </span>
       <PlayButton size="sm" />
-      <button className="ctl sm" onClick={(e) => { e.stopPropagation(); usePlayer.getState().skip(1); }} aria-label="Next"><SkipForward size={20} fill="currentColor" /></button>
+      <button className="ctl sm" onClick={(e) => { e.stopPropagation(); usePlayer.getState().skip(1); }} aria-label="Next"><MiniNext size={20} fill="currentColor" /></button>
       {track.kind === 'song' && <span className="mini-progress" style={{ transform: `scaleX(${pos})` }} />}
     </motion.div>
   );
